@@ -7,150 +7,44 @@
 #include <Wire.h>
 #include <Reactduino.h>
 #include <ctype.h> 
-
-
-// PINS
-#define LAPP1 2
-#define LAPP2 3
-#define P1LED 12
-#define P2LED 11
-#define BUZZER1 9
-#define BUZZER 8
-const int SEMA1[3] = {45, 47, 49};
-const int SEMA2[3] = {48, 46, 44};
-
-
-// Constants
-#define MAX_LAPS 200
-#define DEFAULT_LAPS "30"
-#define DEBUG true
-#define LAPS 3
-#define BLINK_TIME 100
-#define N_PINS 24
-#define DEFAULT_BLINK_DURATION 2000
-#define KEYBOARD_DELAY 20
-#define TEST_DELAY 500
-
-#define FONT_BIG u8g2_font_logisoso18_tf
-#define FONT_MATRIX u8g2_font_trixel_square_tn
-#define FONT_SMALL  u8g2_font_7x13B_tf
-#define FONT_RATIO 3
-
-
-#define REACT(func) [](){func;}
-#define DEB(varname) debug(String(__FILE__).substring(String(__FILE__).lastIndexOf("/")+1, String(__FILE__).length())+":"+String(__LINE__)+" --> "#varname" = " + String(varname))
-#define DELAY_HIGH(n, pin) app.delay(n,[](){digitalWrite(pin, HIGH);})
-#define DELAY_LOW(n, pin) app.delay(n,[](){digitalWrite(pin, LOW);})
-#define REPEAT_BLINK(n, pin) app.repeat(n, [] () {static bool state = false; digitalWrite(pin, state = !state);})
-#define DELAY_AWRITE(n, pin, value) app.delay(n,[](){analogWrite(pin, value);})
-
-
-// Keypad
-const size_t ELEMENT_COUNT = 5;
-const byte rows = 4; //four rows
-const byte cols = 4; //three columns
-char keys[rows][cols] = {
-  {'1','2','3','A'},
-  {'4','5','6','B'},
-  {'7','8','9','C'},
-  {'#','0','*','D'}
-};
-
-byte rowPins[rows] = {22, 24, 26, 28}; //connect to the row pinouts of the keypad
-byte colPins[cols] = {30, 32, 34, 36}; //connect to the column pinouts of the keypad
-Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, rows, cols );
-
+#include "definitions.h"
+#include "display.h"
+#include "react.h"
 
 // Classes
-void debug(String msg) {
-  if (DEBUG) {
-    Serial.println(String("DEBUG: ") + msg);
-  }
-}
-
-void log(String msg){
-  Serial.println("--> " + msg);
-}
 
 typedef struct Lap_struct {
   int player;
   int num;
-  float time;
+  unsigned long time;
+  unsigned long lap_time;
 } Lap;
 
 
-class Cursor{
-  private:
-    void setup(int topMargin, int fontHeight, int lineSpacing, int fontWidth){
-      this->x = 0;
-      this->y = topMargin+fontHeight;
-      this->lineSpacing = lineSpacing;
-      this->fontWidth = fontWidth;
-    }
-
-  public:
-    int x, y, width, height, fontHeight, topMargin, lineSpacing, fontWidth;
-    Cursor(int width, int height, int fontHeight): width(width), height(height), fontHeight(fontHeight){
-      this->setup(0, fontHeight,0, fontHeight/FONT_RATIO);
-    }
-    Cursor(int width, int height, int fontHeight, int topMargin, int lineSpacing, int fontWidth): width(width), height(height), fontHeight(fontHeight), fontWidth(fontWidth), topMargin(0), lineSpacing(0){
-      this->setup(topMargin,fontHeight,lineSpacing, fontWidth);
-    }
-    Cursor(int width, int height, int fontHeight, int topMargin, int lineSpacing): width(width), height(height), fontHeight(fontHeight), fontWidth(fontHeight/FONT_RATIO), topMargin(0), lineSpacing(0){
-      this->setup(topMargin,fontHeight,lineSpacing, fontHeight/FONT_RATIO);
-    }
-
-    void inc(int steps){
-      this->x+=steps;
-      if (this->x > this->width){
-        this->x=0;
-        this->linebreak();
-      }
-    }
-
-    void step(int steps){
-      this->x+=this->fontWidth*steps;
-      if (this->x > this->width){
-        this->x=0;
-        this->linebreak();
-      }
-    }
-    void linebreak(){
-      this->y += this->fontHeight+this->lineSpacing;
-    }
-
-    bool isFull(){
-      return this->y > this->height;
-    }
-};
-
-typedef struct Output_struct {
-  String msg;
-  U8G2 *tela;
-  Cursor &cursor;
-  const uint8_t *font;
-} Output;
-
 // Variables
-Lap laps[MAX_LAPS];
-char lastKey;
+Lap p1Laps[MAX_LAPS];
+Lap p2Laps[MAX_LAPS];
 char inputBuffer[4];
 bool gameloop = false;
 Cursor tela1_cursor(128, 64, 18, 22, 5);
 Cursor tela2_cursor(128, 64, 18, 22, 5);
-Cursor matrix_cursor1(8, 8, 8);
-Cursor matrix_cursor2(8, 8, 8);
+Cursor matrix1_cursor(8, 8, 8);
+Cursor matrix2_cursor(8, 8, 8);
 
 
 // Screens
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C tela1(U8G2_R0, /* clock=*/ 18, /* data=*/ 17);
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C tela2(U8G2_R0, /* clock=*/ 14, /* data=*/ 16);
-U8G2_MAX7219_8X8_F_4W_SW_SPI matrix2(U8G2_R0, /* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41, /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
-U8G2_MAX7219_8X8_F_4W_SW_SPI matrix1(U8G2_R0, /* clock=*/ 52, /* data=*/ 51, /* cs=*/ 50, /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
+U8G2_MAX7219_8X8_F_4W_SW_SPI matrix1(U8G2_R0, /* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41, /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
+U8G2_MAX7219_8X8_F_4W_SW_SPI matrix2(U8G2_R0, /* clock=*/ 52, /* data=*/ 51, /* cs=*/ 50, /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
 
 
+// OutputPane
+OutputPane OS1(tela1_cursor,   &tela1,   FONT_BIG);
+OutputPane OS2(tela2_cursor,   &tela2,   FONT_BIG);
+OutputPane MS1(matrix1_cursor, &matrix1, FONT_MATRIX);
+OutputPane MS2(matrix2_cursor, &matrix2, FONT_MATRIX);
 
-// Output
 char *str2char(String str){
   int str_len = str.length() + 1; 
   char char_array[str_len];
@@ -182,38 +76,50 @@ void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t 
   // cursor.inc(char_width*str_len);
 }
 
+void write(String msg, OutputPane output) {write(msg, output.tela, output.cursor, output.font);}
+
 void print(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
   tela->clearBuffer();
   write(msg, tela, cursor, font);
 }
 
+void print(String msg, OutputPane output) {print(msg, output.tela, output.cursor, output.font);}
+
+void tone(int freq, int time){
+  analogWrite(A0, 255);
+  tone(BUZZER, freq, time);
+  app.delay(time, REACT(analogWrite(A0, 0)));
+}
+
+void matrixMirrowedDrawBox(u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h){
+  matrix1.clearBuffer();
+  matrix2.clearBuffer();
+  matrix1.drawBox(x, y, w, h);
+  matrix2.drawBox(x, y, w, h);
+  matrix1.sendBuffer();					
+  matrix2.sendBuffer();					
+}
+
 void matrixMirrowedPrint(String n){
-  matrix_cursor1.x=0;
-  matrix_cursor1.y=8;
-  print(n, &matrix1, matrix_cursor1, FONT_MATRIX);
-  matrix_cursor2.x=0;
-  matrix_cursor2.y=8;
-  print(n, &matrix2, matrix_cursor2, FONT_MATRIX);
+  matrix1_cursor.x=0;
+  matrix1_cursor.y=8;
+  matrix2_cursor.x=0;
+  matrix2_cursor.y=8;
+  print(n, &matrix1, matrix1_cursor, FONT_MATRIX);
+  print(n, &matrix2, matrix2_cursor, FONT_MATRIX);
 }
 
 void mirrowedPrint(String n){
   tela1_cursor.x=30;
   tela1_cursor.y=40;
-  print(n, &tela1, tela1_cursor, FONT_BIG);
   tela2_cursor.x=30;
   tela2_cursor.y=40;
+  print(n, &tela1, tela1_cursor, FONT_BIG);
   print(n, &tela2, tela2_cursor, FONT_BIG);
 }
 
-// Keyboard Handling
-char receiveKey(){
-  char key = keypad.getKey();
-  if(lastKey == key or key == ' ')
-    return '-';
-  lastKey = key;
-  return key;
-}
 
+// Keyboard Handling
 String input(int size = 2){
   int count = 0;
   char buffer[8];
@@ -252,23 +158,23 @@ void ASemOn(int sema[3]){
   }
 }
 
-void inc_matrix1(){
-      static int count = 0;
+void inc_matrix1(int start = 0){
+      static int count = start;
       if(count >= 100)
         count = 0;
-      matrix_cursor1.x=0;
-      matrix_cursor1.y=8;
-      print(String(count), &matrix1, matrix_cursor1, FONT_MATRIX);
+      matrix1_cursor.x=0;
+      matrix1_cursor.y=8;
+      print(String(count), &matrix1, matrix1_cursor, FONT_MATRIX);
       count++;
 }
 
-void inc_matrix2(){
-      static int count = 0;
+void inc_matrix2(int start = 0){
+      static int count = start;
       if(count >= 200)
         count = 0;
-      matrix_cursor2.x=0;
-      matrix_cursor2.y=8;
-      print(String(count), &matrix2, matrix_cursor2, FONT_MATRIX);
+      matrix2_cursor.x=0;
+      matrix2_cursor.y=8;
+      print(String(count), &matrix2, matrix2_cursor, FONT_MATRIX);
       count++;
 }
 
@@ -281,6 +187,8 @@ void largada();
 void game();
 void win(int n){
   log("Player" + String(n) + " won");
+  matrix1.clear();
+  matrix2.clear();
   if(n==1){
     print("Won!", &tela1, tela1_cursor, FONT_BIG);
     app.repeat(500, [](){
@@ -307,54 +215,72 @@ void win(int n){
   if (receiveKey()=='D') {
     ASemOff(SEMA2);
     ASemOff(SEMA1);
-    game();
+    noTone(BUZZER);
     app.free(wmr);
   }
   });
 }
 
+reaction Rlargada[4], qdr1, qdr2, Rwaitd;
+void waitd(react_callback cb);
 volatile int p1_laps;
 volatile int p2_laps;
+unsigned long start;
 void race(){
-  p1_laps = 0;
-  p2_laps = 0;
-  analogWrite(BUZZER, 0);
+  p1_laps = -1;
+  p2_laps = -1;
+  start = 0;
+  bindKey('D', [](){
+      app.free(p1r);
+      app.free(p2r);
+      game();
+  });
   debug("Racing");
-  p1r = app.onPinFalling(LAPP1, [](){
+  p1r = app.onPinRising(LAPP1, [](){
+      if(p1_laps == -1){
+        p1_laps++;
+        return;
+      }
       DEB(p1_laps);
       if(p1_laps > race_n_laps){
         app.free(p1r);
         app.free(p2r);
-        debug("Win");
+        p1Laps[p1_laps].time = start - millis();
         win(1);
         return;
       }
+      if(p1_laps == 0)
+        p1Laps[p1_laps].lap_time = - start + millis();
+      else
+        p1Laps[p1_laps].lap_time = - p1Laps[p1_laps - 1].lap_time + millis();
+      tela1_cursor.x = 10;
+      int sec = p1Laps[p1_laps].lap_time / 1000;
+      int ms = p1Laps[p1_laps].lap_time % 1000;
+      print(String(sec)+"."+String(ms), OS1);
       p1_laps++;
-      inc_matrix1();
+      inc_matrix1(0);
   });
-  p2r = app.onPinFalling(LAPP2, [](){
+  p2r = app.onPinRising(LAPP2, [](){
+      if(p2_laps == -1) {
+        p2_laps++;
+        return;
+      }
       DEB(p2_laps);
       if(p2_laps > race_n_laps){
         app.free(p1r);
         app.free(p2r);
-        debug("Win");
         win(2);
         return;
       }
       p2_laps++;
-      inc_matrix2();
+      inc_matrix2(0);
   });
 }
 
-reaction Rlargada[4], qdr1, qdr2, Rwaitd;
-void wait_d(){
+void wait_d(react_callback cb){
   char key = receiveKey(); 
   if (key=='D') {
-    ASemOff(SEMA1);
-    ASemOff(SEMA2);
-    print("Ready?", &tela1, tela1_cursor, FONT_BIG);
-    print("Ready?", &tela2, tela2_cursor, FONT_BIG);
-    app.delay(1000, REACT(largada()));
+    cb();
     app.free(Rlargada);
   }
 }
@@ -363,9 +289,16 @@ void quemada(){
   for(int i = 0; i<4; i++){
     app.free(Rlargada[i]);
   }
-  Rwaitd = app.repeat(KEYBOARD_DELAY, REACT(wait_d()));
-  app.delay(10, REACT(tone(BUZZER, NOTE_C4, 200)));
-  app.delay(400, REACT(tone(BUZZER, NOTE_C4, 600)));
+  Rwaitd = app.repeat(KEYBOARD_DELAY, REACT(wait_d([](){
+    ASemOff(SEMA1);
+    ASemOff(SEMA2);
+    print("Ready?", &tela1, tela1_cursor, FONT_BIG);
+    print("Ready?", &tela2, tela2_cursor, FONT_BIG);
+    app.delay(1000, REACT(largada()));
+  })));
+
+  app.delay(10, REACT(tone(NOTE_C4, 200)));
+  app.delay(400, REACT(tone(NOTE_C4, 600)));
 }
 
 void largada(){
@@ -380,6 +313,9 @@ void largada(){
     DELAY_AWRITE(0, SEMA1[0], 255);
     quemada();
     app.free(qdr1);
+    app.free(qdr2);
+    matrix1.clear();
+    matrix2.clear();
   });
   qdr2 = app.onPinFalling(LAPP2, [](){
     tela2_cursor.x=30;
@@ -390,33 +326,44 @@ void largada(){
     ASemOff(SEMA2);
     DELAY_AWRITE(0, SEMA2[0], 255);
     quemada();
+    app.free(qdr1);
     app.free(qdr2);
+    matrix1.clear();
+    matrix2.clear();
   }); 
+
   Rlargada[0] = app.delay(delays[0],[](){
       analogWrite(SEMA1[0], 255);
       analogWrite(SEMA2[0], 255);
-      tone(BUZZER, NOTE_E4, 400);
+      tone(NOTE_E4, 400);
+      matrixMirrowedDrawBox(0, 5, 8, 8);
       mirrowedPrint("3");
   });
 
   Rlargada[1] = app.delay(delays[1],[](){
       analogWrite(SEMA1[1], 255);
       analogWrite(SEMA2[1], 255);
-      tone(BUZZER, NOTE_E4, 400);
+      tone(NOTE_E4, 400);
+      matrixMirrowedDrawBox(0, 3, 8, 8);
       mirrowedPrint("2");
   });
 
   Rlargada[2] = app.delay(delays[2],[](){
       analogWrite(SEMA1[2], 255);
       analogWrite(SEMA2[2], 255);
-      tone(BUZZER, NOTE_E4, 400);
+      tone(NOTE_E4, 400);
+      matrixMirrowedDrawBox(0, 0, 8, 8);
       mirrowedPrint("1");
   });
 
   Rlargada[3] = app.delay(delays[3],[](){
+      app.free(qdr1);
+      app.free(qdr2);
+      matrix1.clear();
+      matrix2.clear();
       U2SemOff(SEMA1);
       U2SemOff(SEMA2);
-      tone(BUZZER, NOTE_E5, 1000);
+      tone(NOTE_E5, 1000);
       mirrowedPrint("Go!");
       matrixMirrowedPrint("0");
       race();
@@ -431,7 +378,6 @@ void game(){
   matrixMirrowedPrint("");
   Rmenu = app.repeat(KEYBOARD_DELAY, REACT(menu_input()));
 }
-
 
 void menu_input(){
   static String last = "";
@@ -469,28 +415,30 @@ void test_process_input(){
 }
 
 void testMode(){
+  app.delay(0, REACT(tone(NOTE_C4, 100)));
+  app.delay(200, REACT(tone(NOTE_C4, 500)));
   m1r=app.repeat(1000, REACT(inc_matrix1()));
   m2r=app.repeat(800, REACT(inc_matrix2()));
   app.repeat(KEYBOARD_DELAY, REACT(test_process_input()));
   app.repeat(500, [](){
       static int count = 0;
       tela1_cursor.x=0;
-      print("test1 "+String(count), &tela1, tela1_cursor, FONT_BIG);
+      print("test1 "+String(count), OS1);
       count++;
   });
   t2r=app.repeat(500, [](){
       static int count = 0;
       tela2_cursor.x=0;
-      print("test2 "+String(count), &tela2, tela2_cursor, FONT_BIG);
+      print("test2 "+String(count), OS2);
       count++;
   });
   app.onPinFalling(LAPP1, [](){
       app.free(m1r);
-      inc_matrix1();
+      inc_matrix1(1);
   });
   app.onPinFalling(LAPP2, [](){
       app.free(m2r);
-      inc_matrix2();
+      inc_matrix2(2);
   });
 }
 
@@ -526,9 +474,19 @@ void app_main() {
   matrix1.begin();
   matrix2.begin();
   tela1.begin();
+  tela1.enableUTF8Print();	
   tela2.begin();
+  tela2.enableUTF8Print();	
   boot();
-
+  // #define test_width 16
+  // #define test_height 16
+  // static unsigned char test_bits[] = {
+     // 0xff, 0xff, 0x01, 0x80, 0xfd, 0xbf, 0x05, 0xa0, 0xf5, 0xaf, 0x15, 0xa8,
+     // 0xd5, 0xab, 0x55, 0xaa, 0x55, 0xaa, 0xd5, 0xab, 0x15, 0xa8, 0xf5, 0xaf,
+     // 0x05, 0xa0, 0xfd, 0xbf, 0x01, 0x80, 0xff, 0xff};
+  // tela1.clear();
+  // tela1.drawXBM( 0, 0, test_width, test_height, test_bits);
+  // tela1.sendBuffer();
 }
 
 Reactduino app(app_main);
