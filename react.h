@@ -1,5 +1,32 @@
 #include <Reactduino.h>
 
+class ReactionManager{
+  public:
+    reaction reactions[12];
+    int i;
+    ReactionManager(){
+      this->i=0;
+    }
+    add(reaction r){
+      reactions[this->i] = r;
+      this->i++;
+      DEB("Adding reaction");
+    }
+    add(reaction r[]){
+      int len = sizeof(r)/sizeof(r[0]);
+      for(int i=0; i<len; i++){
+        this->add(r[i]);
+      }
+    }
+    free(){
+      for(int i=0; i<this->i; i++){
+        app.free(reactions[i]);
+      }
+      this->i = 0;
+    }
+};
+
+
 char lastKey;
 char receiveKey(){
   char key = keypad.getKey();
@@ -25,7 +52,8 @@ struct RbindKey_s{
 };
 RbindKey_s RbindKey;
 
-void bindKey(char key, react_callback cb){
+reaction bindKey(char key, react_callback cb){
+  reaction Rreturn;
   switch (key){
     case 'A':
       RbindKey.a_cb = cb;
@@ -34,6 +62,7 @@ void bindKey(char key, react_callback cb){
         RbindKey.a_cb();
         app.free(RbindKey.a);
       }});
+      Rreturn =RbindKey.a;
       break;
 
     case 'B':
@@ -43,6 +72,7 @@ void bindKey(char key, react_callback cb){
         RbindKey.b_cb();
         app.free(RbindKey.b);
       }});
+      Rreturn =RbindKey.b;
       break;
 
     case 'C':
@@ -52,15 +82,18 @@ void bindKey(char key, react_callback cb){
         RbindKey.c_cb();
         app.free(RbindKey.c);
       }});
+      Rreturn =RbindKey.c;
       break;
 
     case 'D':
       RbindKey.d_cb = cb;
+      app.free(RbindKey.d);
       RbindKey.d = app.repeat(KEYBOARD_DELAY, [](){
       if (receiveKey()=='D') {
         RbindKey.d_cb();
         app.free(RbindKey.d);
       }});
+      Rreturn =RbindKey.d;
       break;
 
     case '*':
@@ -70,6 +103,7 @@ void bindKey(char key, react_callback cb){
         RbindKey.e_cb();
         app.free(RbindKey.e);
       }});
+      Rreturn =RbindKey.e;
       break;
 
     case '#':
@@ -79,10 +113,12 @@ void bindKey(char key, react_callback cb){
         RbindKey.f_cb();
         app.free(RbindKey.f);
       }});
+      Rreturn =RbindKey.f;
       break;
 
     default:
      log("Wrong character!");
   }
+  return Rreturn;
 }
 

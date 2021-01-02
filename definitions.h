@@ -19,12 +19,16 @@ const int SEMA2[3] = {48, 46, 44};
 #define DEFAULT_BLINK_DURATION 2000
 #define KEYBOARD_DELAY 20
 #define TEST_DELAY 500
+#define MIN_LAP_TME 200
 
 #define FONT_BIG u8g2_font_logisoso18_tf
 #define FONT_MATRIX u8g2_font_trixel_square_tn
 #define FONT_SMALL  u8g2_font_7x13B_tf
-#define FONT_RATIO 3
+#define FONT_RATIO 4
 
+#define MATRIX_Y_CENTER 7
+#define MATRIX_ANIMATION_PAUSE 2
+#define MATRIX_ANIMATION_DELAY 400
 
 #define REACT(func) [](){func;}
 #define DEB(varname) debug(String(__FILE__).substring(String(__FILE__).lastIndexOf("/")+1, String(__FILE__).length())+":"+String(__LINE__)+" --> "#varname" = " + String(varname))

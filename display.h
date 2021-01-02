@@ -1,9 +1,10 @@
 /* TODO 'S
- * Display slide animationf for big numbers
+ * finx bug slide animations
  * time interval for sensor
  * free bugs
  * not reseting number of laps bug
- * react.h
+ * blinking lights after win
+ * no menu after win
  */
 
 #define FONT_RATIO 2
@@ -85,3 +86,6 @@ public:
   }
 
 };
+
+
+
