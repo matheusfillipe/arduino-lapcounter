@@ -10,16 +10,18 @@ const int SEMA2[3] = {48, 46, 44};
 
 
 // Constants
-#define MAX_LAPS 200
-#define DEFAULT_LAPS "30"
+#define MAX_LAPS 255
+#define BITS_LAPS 8
+#define DEFAULT_LAPS "40"
+
 #define DEBUG true
-#define LAPS 3
 #define BLINK_TIME 100
+#define BLINK_TIME_SLOW 100
 #define N_PINS 24
 #define DEFAULT_BLINK_DURATION 2000
 #define KEYBOARD_DELAY 20
 #define TEST_DELAY 500
-#define MIN_LAP_TME 200
+#define MIN_LAP_TIME 800
 
 #define FONT_BIG u8g2_font_logisoso18_tf
 #define FONT_MATRIX u8g2_font_trixel_square_tn
@@ -28,8 +30,16 @@ const int SEMA2[3] = {48, 46, 44};
 
 #define MATRIX_Y_CENTER 7
 #define MATRIX_ANIMATION_PAUSE 2
-#define MATRIX_ANIMATION_DELAY 400
+#define MATRIX_ANIMATION_DELAY 300
 
+#define TEST_START 0
+#define LAP_START -1 //-1
+
+#define MAX_SIMUL_REACTIONS 8
+#define ONE 1
+#define THOUSAND 1000
+
+// Macros
 #define REACT(func) [](){func;}
 #define DEB(varname) debug(String(__FILE__).substring(String(__FILE__).lastIndexOf("/")+1, String(__FILE__).length())+":"+String(__LINE__)+" --> "#varname" = " + String(varname))
 #define DELAY_HIGH(n, pin) app.delay(n,[](){digitalWrite(pin, HIGH);})

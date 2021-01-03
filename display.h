@@ -1,10 +1,5 @@
 /* TODO 'S
- * finx bug slide animations
  * time interval for sensor
- * free bugs
- * not reseting number of laps bug
- * blinking lights after win
- * no menu after win
  */
 
 #define FONT_RATIO 2

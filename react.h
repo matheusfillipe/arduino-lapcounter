@@ -2,7 +2,7 @@
 
 class ReactionManager{
   public:
-    reaction reactions[12];
+    reaction reactions[MAX_SIMUL_REACTIONS];
     int i;
     ReactionManager(){
       this->i=0;
@@ -10,7 +10,8 @@ class ReactionManager{
     add(reaction r){
       reactions[this->i] = r;
       this->i++;
-      DEB("Adding reaction");
+      debug("Adding reaction");
+      DEB(r);
     }
     add(reaction r[]){
       int len = sizeof(r)/sizeof(r[0]);
@@ -22,6 +23,7 @@ class ReactionManager{
       for(int i=0; i<this->i; i++){
         app.free(reactions[i]);
       }
+      debug("Freeing");
       this->i = 0;
     }
 };
@@ -87,7 +89,6 @@ reaction bindKey(char key, react_callback cb){
 
     case 'D':
       RbindKey.d_cb = cb;
-      app.free(RbindKey.d);
       RbindKey.d = app.repeat(KEYBOARD_DELAY, [](){
       if (receiveKey()=='D') {
         RbindKey.d_cb();

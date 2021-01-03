@@ -1,8 +1,12 @@
+reaction matrix1_print_reaction;
+reaction matrix2_print_reaction;
+
 const char* str2char(String str){
   int str_len = str.length() + 1; 
   char char_array[str_len];
   return char_array;
 }
+
 void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
   int str_len = msg.length() + 1; 
   u8g2_uint_t char_width = tela->getMaxCharWidth();
@@ -106,23 +110,26 @@ void ASemOff(int sema[3]){
 
 void ASemOn(int sema[3]){
   for(int i=0; i<3; i++){
-    analogWrite(sema[i], 0);
+    analogWrite(sema[i], 255);
   }
 }
 
 int mstart1;
 int mstart2;
 
-void matrix1_print(int num);
-void matrix2_print(int num);
+bool matrix1_print(int num);
+bool matrix2_print(int num);
 
 react_callback inc_matrix1(int start = 0){
   mstart1 = start;
   return [](){
       static int count = mstart1;
+      static bool animating = false;
       if(count >= MAX_LAPS)
         count = 0;
-      matrix1_print(count);
+      if (animating)
+        app.free(matrix1_print_reaction);
+      animating = matrix1_print(count);
       count++;
   };
 }
@@ -131,18 +138,18 @@ react_callback inc_matrix2(int start = 0){
   mstart2 = start;
   return [](){
       static int count = mstart2;
+      static bool animating = false;
       if(count >= MAX_LAPS)
         count = 0;
-      matrix2_print(count);
+      if (animating)
+        app.free(matrix1_print_reaction);
+      animating = matrix2_print(count);
       count++;
   };
 }
 
-
-
-reaction matrix1_print_reaction;
 String matrix1_number;
-void matrix1_print(int num){ 
+bool matrix1_print(int num){ 
   matrix1_number = num;
   String msg = String(num);
   matrix1.setFont(FONT_MATRIX);
@@ -155,8 +162,7 @@ void matrix1_print(int num){
     print(msg, &matrix1, matrix1_cursor, FONT_MATRIX);
     return;
   }
-  // app.free(matrix1_print_reaction);
-  rman.add(matrix1_print_reaction);
+
   matrix1_print_reaction = app.repeat(MATRIX_ANIMATION_DELAY, [](){       
       static const int w = matrix1.getStrWidth(matrix1_number.c_str());
       static const int W = matrix1.getDisplayWidth();
@@ -179,12 +185,12 @@ void matrix1_print(int num){
       delay = xOffset == 0 ? 0 : delay;
       firstTime = false;
   });
+  return repeat;
 }
 
 
-reaction matrix2_print_reaction;
 String matrix2_number;
-void matrix2_print(int num){ 
+bool matrix2_print(int num){ 
   matrix2_number = num;
   String msg = String(num);
   matrix2.setFont(FONT_MATRIX);
@@ -197,8 +203,7 @@ void matrix2_print(int num){
     print(msg, &matrix2, matrix2_cursor, FONT_MATRIX);
     return;
   }
-  // app.free(matrix2_print_reaction);
-  rman.add(matrix2_print_reaction);
+  
   matrix2_print_reaction = app.repeat(MATRIX_ANIMATION_DELAY, [](){       
       static const int w = matrix2.getStrWidth(matrix2_number.c_str());
       static const int W = matrix2.getDisplayWidth();
@@ -221,4 +226,5 @@ void matrix2_print(int num){
       delay = xOffset == 0 ? 0 : delay;
       firstTime = false;
   });
+  return repeat;
 }
