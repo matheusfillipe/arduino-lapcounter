@@ -21,6 +21,7 @@ const int SEMA2[3] = {48, 46, 44};
 #define MAX_LAPS 255
 #define BITS_LAPS 8
 #define DEFAULT_LAPS "4"
+#define AUTONOMY 100
 
 #define DEBUG true
 #define BLINK_TIME 100
@@ -54,11 +55,15 @@ const int SEMA2[3] = {48, 46, 44};
 #define TEXT_WIN "Win!"
 #define TEXT_LOOSE "Lost!"
 #define TEXT_BESTLAP "BS: "
+
 #define TEXT_STARTUP_BURNED "Queimou!"
 #define TEXT_STARTUP_READY "Ready?"
 #define TEXT_STARTUP_READY "Ready?"
-#define TEXT_MENU_LAPS "Voltas:"
+
+#define TEXT_MENU_LAPS "Voltas: "
 #define TEXT_MENU_PITSTOP "Pit Stop"
+#define TEXT_MENU_AUTONOMY "Autonomia: "
+#define TEXT_MENU_FAILURE "Failure: "
 
 // Macros
 #define REACT(func) [](){func;}

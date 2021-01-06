@@ -41,6 +41,8 @@ Cursor matrix1_cursor(8, 8, 8);
 Cursor matrix2_cursor(8, 8, 8);
 ReactionManager rman;
 
+int race_n_laps = String(DEFAULT_LAPS).toInt();
+int autonomy = AUTONOMY;
 
 // Screens
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C tela1(U8G2_R0, /* clock=*/ 14, /* data=*/ 16);
@@ -100,7 +102,6 @@ void printWin(int n){
     }
 }
 
-int race_n_laps = String(DEFAULT_LAPS).toInt();
 void win(int n){
   rman.free();
   matrix1.clear();
@@ -139,7 +140,8 @@ unsigned long start;
 void writeFuel(int fuel, OutputPane FS){
     FS.tela->setFont(FS.font);
     FS.tela->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
-    FS.tela->drawBox(25, 5, fuel*(122-25)/100, 5);
+    FS.tela->drawBox(15, 5, fuel*(128-45)/100, 5);
+    FS.tela->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/autonomy)).c_str());	
 }
 
 void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPane &LS, unsigned long fuel, OutputPane &FS){
@@ -180,10 +182,14 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
     printLap(dt, OS, pbltime, BLS, fuel, FS);
     if(animating)
       app.free(matrix_print_reaction);
-    tone(NOTE_E4, 100);
 
-    fuel -= 10;
+    fuel -= 100/autonomy;
     fuel = fuel < 0 ? 0 : fuel;
+    if(fuel - 100/autonomy <= 0)
+      tone(NOTE_E5, 500);
+    else
+      tone(NOTE_E4, 150);
+
     return animating;
 }
 
