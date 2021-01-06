@@ -1,7 +1,3 @@
-/* TODO 'S
- * time interval for sensor
- */
-
 #define FONT_RATIO 2
 #include <U8g2lib.h>
 class Cursor{
@@ -65,7 +61,6 @@ public:
     tela->setFont(this->font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
     char char_array[str_len];
     msg.toCharArray(char_array, str_len);
-    tela->clearBuffer();
     tela->drawStr(this->cursor.x, this->cursor.y, char_array);	// write something to the internal memory
     tela->sendBuffer();					// transfer internal memory to the display
     this->text += msg;
@@ -76,7 +71,8 @@ public:
     this->write(msg);
   }
 
-  void clear(String msg) {
+  void clear() {
+    this->tela->clear();
     this->text="";
   }
 

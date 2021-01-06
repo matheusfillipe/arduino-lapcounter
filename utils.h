@@ -1,6 +1,8 @@
 reaction matrix1_print_reaction;
 reaction matrix2_print_reaction;
 
+void(* resetProgram) (void) = 0;
+
 const char* str2char(String str){
   int str_len = str.length() + 1; 
   char char_array[str_len];
@@ -26,20 +28,23 @@ void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t 
   // }
   char char_array[str_len];
   msg.toCharArray(char_array, str_len);
-  tela->clearBuffer();
   tela->drawStr(cursor.x, cursor.y, char_array);	// write something to the internal memory
   tela->sendBuffer();					// transfer internal memory to the display
   // cursor.inc(char_width*str_len);
 }
 
-void write(String msg, OutputPane output) {write(msg, output.tela, output.cursor, output.font);}
+void write(String msg, OutputPane output) {
+  write(msg, output.tela, output.cursor, output.font);
+}
 
 void print(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
   tela->clearBuffer();
   write(msg, tela, cursor, font);
 }
 
-void print(String msg, OutputPane output) {print(msg, output.tela, output.cursor, output.font);}
+void print(String msg, OutputPane &output) {
+  print(msg, output.tela, output.cursor, output.font);
+}
 
 void tone(int freq, int time){
   analogWrite(A0, 255);
@@ -65,13 +70,31 @@ void matrixMirrowedPrint(String n){
   print(n, &matrix2, matrix2_cursor, FONT_MATRIX);
 }
 
-void mirrowedPrint(String n){
+void mirrowedPrint(String msg){
+  static bool toggle = true;
   tela1_cursor.x=30;
   tela1_cursor.y=40;
   tela2_cursor.x=30;
   tela2_cursor.y=40;
-  print(n, &tela1, tela1_cursor, FONT_BIG);
-  print(n, &tela2, tela2_cursor, FONT_BIG);
+
+  int str_len = msg.length() + 1; 
+  char char_array[str_len];
+  msg.toCharArray(char_array, str_len);
+  tela1.setFont(FONT_BIG);  
+  tela2.setFont(FONT_BIG);  
+  tela1.clearBuffer();
+  tela2.clearBuffer();
+  tela1.drawStr(tela1_cursor.x, tela1_cursor.y, char_array);	
+  tela2.drawStr(tela2_cursor.x, tela2_cursor.y, char_array);	
+  if(toggle){
+    tela1.sendBuffer();					
+    tela2.sendBuffer();					
+  }
+  else{
+    tela2.sendBuffer();					
+    tela1.sendBuffer();					
+  }
+  toggle = !toggle;
 }
 
 
@@ -227,4 +250,16 @@ bool matrix2_print(int num){
       firstTime = false;
   });
   return repeat;
+}
+
+String timestamp(unsigned long dt){
+    String sec = String(dt / _THOUSAND); 
+    String ms = String(dt % _THOUSAND); 
+    if (ms.length() == 0)
+      ms = "000";
+    if (ms.length() == 1)
+      ms += "00";
+    if (ms.length() == 2)
+      ms += "0";
+    return String(sec+"."+ms);
 }

@@ -23,10 +23,20 @@ typedef struct Lap_struct {
 // Variables
 Lap p1Laps[MAX_LAPS];
 Lap p2Laps[MAX_LAPS];
+unsigned long p1bltime;
+unsigned long p2bltime;
+int p1_laps;
+int p2_laps; 
+
 char inputBuffer[4];
 bool gameloop = false;
 Cursor tela1_cursor(128, 64, 18, 22, 5);
 Cursor tela2_cursor(128, 64, 18, 22, 5);
+Cursor bl1Cursor(128, 64, 60);
+Cursor bl2Cursor(128, 64, 60);
+Cursor f1Cursor(128, 64, 12);
+Cursor f2Cursor(128, 64, 12);
+
 Cursor matrix1_cursor(8, 8, 8);
 Cursor matrix2_cursor(8, 8, 8);
 ReactionManager rman;
@@ -41,25 +51,54 @@ U8G2_MAX7219_8X8_F_4W_SW_SPI matrix2(U8G2_R0, /* clock=*/ 27, /* data=*/ 23, /* 
 
 // OutputPane
 OutputPane OS1(tela1_cursor,   &tela1,   FONT_BIG);
+OutputPane BLS1(bl1Cursor,    &tela1,   FONT_SMALL);
+OutputPane FS1(f1Cursor,    &tela1,   FONT_SMALL);
+
 OutputPane OS2(tela2_cursor,   &tela2,   FONT_BIG);
+OutputPane BLS2(bl2Cursor,   &tela2,   FONT_SMALL);
+OutputPane FS2(bl2Cursor,    &tela2,   FONT_SMALL);
+
 OutputPane MS1(matrix1_cursor, &matrix1, FONT_MATRIX);
 OutputPane MS2(matrix2_cursor, &matrix2, FONT_MATRIX);
 
 // Games
 #include "utils.h"
 
-int race_n_laps = String(DEFAULT_LAPS).toInt();
 void countdown();
 void game();
+void race();
+void startup();
+void menu_input();
+
+void printWin(int n){
+    log("Player" + String(n) + " won");
+    if(n==1){
+      print("Won!", OS1);
+      print("Lost!", OS2);
+    }
+    else if(n==2){
+      print("Lost!", OS1);
+      print("Won!", OS2);
+    }
+    BLS1.cursor.x+=80;
+    BLS2.cursor.x+=80;
+    write(timestamp(p1Laps[p1_laps-1].lap_time), BLS1);
+    write(timestamp(p2Laps[p2_laps-1].lap_time), BLS2);
+    BLS1.cursor.x-=80;
+    BLS2.cursor.x-=80;
+    write("BS: "+timestamp(p1bltime), BLS1);
+    write("BS: "+timestamp(p2bltime), BLS2);
+}
+
+int race_n_laps = String(DEFAULT_LAPS).toInt();
 void win(int n){
   rman.free();
   matrix1.clear();
   matrix2.clear();
-
   tone(NOTE_A5, 1500);
+  printWin(n);
+
   if(n==1){
-    log("Player" + String(n) + " won");
-    print("Won!", &tela1, tela1_cursor, FONT_BIG);
     rman.add(app.repeat(500, [](){
         static bool wonState = true;
         if (wonState)
@@ -70,8 +109,6 @@ void win(int n){
     }));
   }
   if(n==2){
-    log("Player" + String(n) + " won");
-    print("Won!", &tela2, tela2_cursor, FONT_BIG);
     rman.add(app.repeat(500, [](){
         static bool wonState = true;
         if (wonState)
@@ -87,135 +124,80 @@ void win(int n){
 
 }
 
-reaction qdr1, qdr2;
-volatile int p1_laps;
-volatile int p2_laps; 
 unsigned long start;
+
+
+bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS){
+    if(digitalRead(pin)==0)
+      return animating;
+    if(p_laps < 0) {
+      p_laps++;
+      OS.clear();
+      return animating;
+    }
+    unsigned long total_time = 0;
+    for(int i = 0; i < p_laps; i++){
+      total_time += pLaps[i].lap_time;
+    }
+    unsigned long dt = (millis() - start) - total_time; 
+    if (dt < MIN_LAP_TIME){  
+      debug("Ignoring"); 
+      return animating; 
+    } 
+    pLaps[p_laps].lap_time = dt;
+
+    if(p_laps >= race_n_laps - 1){
+      win(player);
+      return animating;
+    }
+    print(timestamp(dt), OS); 
+    pbltime = pbltime > dt || pbltime == 0 ? dt : pbltime;
+    animating = matrix_print(++p_laps);
+    write("BS: "+timestamp(pbltime), BLS);
+
+    if (animating)
+      app.free(matrix_print_reaction);
+    tone(NOTE_E4, 100);
+    return animating;
+}
+
+void writeFuel(int fuel, OutputPane &OS){
+  OS.write("F: ");
+  OS.tela->drawBox(25, 5, fuel*(122-25)/100, 5);
+}
+
+reaction qdr1, qdr2;
 void race(){
   debug("Race");
   p1_laps = LAP_START;
   p2_laps = LAP_START;
+  p1bltime = 0;
+  p2bltime = 0;
+  // writeFuel(100, FS1);
+  // writeFuel(100, FS2);
+
   start = millis();
-  rman.add(bindKey('D', [](){
-       game();
-  }));
-  debug("Racing");
+  rman.add(bindKey('D', game));
 
-  rman.add(app.onPinFalling(LAPP1, [](){
+  rman.add(app.onPinRising(LAPP1, [](){
       static bool animating = false;
-      if(p1_laps == LAP_START) {
-        p1_laps++;
-        tela1.clear();
-        return;
-      }
-      unsigned long total_time = 0;
-      for(int i = 0; i < p1_laps; i++)
-        total_time += p1Laps[i].lap_time;
-      unsigned long dt = (millis() - start) - total_time; 
-      DEB(total_time);
-      DEB(dt);
-      if (dt < MIN_LAP_TIME){  
-        debug("Ignoring"); 
-        return; 
-      } 
-      p1Laps[p1_laps].lap_time = dt;
-      DEB(p1_laps);
-      DEB(p1Laps[p1_laps].lap_time);
-      if(p1_laps > race_n_laps - ONE){
-        win(1);
-        return;
-      }
-      if (animating)
-        app.free(matrix1_print_reaction);
-      animating = matrix1_print(p1_laps);
-      int sec = p1Laps[p1_laps].lap_time / THOUSAND; 
-      int ms = p1Laps[p1_laps].lap_time % THOUSAND; 
-      p1_laps++;
-      print(String(sec)+"."+String(ms), OS1); 
+      static int fuel = 100;
+      animating = handleSensorEntered(1, LAPP1, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1);
+      // writeFuel(fuel, FS1)
+      fuel-=10;
+      fuel = fuel < 0 ? 0 : fuel;
   }));
 
-  rman.add(app.onPinFalling(LAPP2, [](){
+  rman.add(app.onPinRising(LAPP2, [](){
       static bool animating = false;
-      if(p2_laps == LAP_START) {
-        p2_laps++;
-        tela2.clear();
-        return;
-      }
-      unsigned long total_time = 0;
-      for(int i = 0; i < p2_laps; i++)
-        total_time += p2Laps[i].lap_time;
-      unsigned long dt = (millis() - start) - total_time; 
-      DEB(total_time);
-      DEB(dt);
-      if (dt < MIN_LAP_TIME){  
-        debug("Ignoring"); 
-        return; 
-      } 
-      p2Laps[p2_laps].lap_time = dt;
-      DEB(p2_laps);
-      DEB(p2Laps[p2_laps].lap_time);
-      if(p2_laps > race_n_laps - ONE){
-        win(2);
-        return;
-      }
-      if (animating)
-        app.free(matrix2_print_reaction);
-      animating = matrix2_print(p2_laps);
-      int sec = p2Laps[p2_laps].lap_time / THOUSAND; 
-      int ms = p2Laps[p2_laps].lap_time % THOUSAND; 
-      p2_laps++;
-      print(String(sec)+"."+String(ms), OS2); 
+      static int fuel = 100;
+      animating = handleSensorEntered(2, LAPP2, animating, p2bltime, p2_laps, p2Laps, matrix2_print_reaction, matrix2_print, OS2, BLS2);
+      // writeFuel(fuel, FS2);
+      fuel-=10;
+      fuel = fuel < 0 ? 0 : fuel;
   }));
 }
 
-void startup(){
-    rman.free();
-    ASemOff(SEMA1);
-    ASemOff(SEMA2);
-    print("Ready?", &tela1, tela1_cursor, FONT_BIG);
-    print("Ready?", &tela2, tela2_cursor, FONT_BIG);
-    rman.add(app.delay(1000, REACT(countdown())));
-
-    // Setup sensors
-    qdr1 = app.onPinFalling(LAPP1, [](){
-      tela1_cursor.x=30;
-      tela1_cursor.y=40;
-      print("Queimou!", &tela1, tela1_cursor, FONT_BIG);
-      print("", &tela2, tela2_cursor, FONT_BIG);
-      ASemOff(SEMA1);
-      ASemOff(SEMA2);
-      restart_countdown();
-      rman.add(app.repeat(BLINK_TIME_SLOW, [](){
-            static bool state = true;
-            analogWrite(SEMA1[0], 255*state);
-            state = !state;
-      }));
-    });
-
-    qdr2 = app.onPinFalling(LAPP2, [](){
-      tela2_cursor.x=30;
-      tela2_cursor.y=40;
-      print("Queimou!", &tela2, tela2_cursor, FONT_BIG);
-      print("", &tela1, tela1_cursor, FONT_BIG);
-      ASemOff(SEMA1);
-      ASemOff(SEMA2);
-      restart_countdown();
-      rman.add(app.repeat(BLINK_TIME_SLOW, [](){
-            static bool state = true;
-            analogWrite(SEMA2[0], 255*state);
-            state = !state;
-      }));
-    }); 
-
-    app.disable(qdr1);
-    app.disable(qdr2);
-    // Avoid bad readings to cause problems (NO idea why but this fixes false
-    // quemadas de largada)
-    app.delay(50, [](){
-        app.enable(qdr1);
-        app.enable(qdr2);
-    });
-}
 
 void restart_countdown(){
   app.free(qdr1);
@@ -274,22 +256,59 @@ void countdown(){
   }));
 }
 
-// Menu
-void game(){
-  rman.free();
-  ASemOff(SEMA2);
-  ASemOff(SEMA1);
-  print("Voltas", &tela1, tela1_cursor, FONT_BIG);
-  print(String(race_n_laps), &tela2, tela2_cursor, FONT_BIG);
-  matrixMirrowedPrint("");
-  debug("Menu");
-  rman.add(app.repeat(KEYBOARD_DELAY, menu_input));
+void startup(){
+    rman.free();
+    ASemOff(SEMA1);
+    ASemOff(SEMA2);
+    print("Ready?", &tela1, tela1_cursor, FONT_BIG);
+    print("Ready?", &tela2, tela2_cursor, FONT_BIG);
+    rman.add(app.delay(1000, REACT(countdown())));
+
+    // Setup sensors
+    qdr1 = app.onPinFalling(LAPP1, [](){
+      tela1_cursor.x=30;
+      tela1_cursor.y=40;
+      print("Queimou!", &tela1, tela1_cursor, FONT_BIG);
+      print("", &tela2, tela2_cursor, FONT_BIG);
+      ASemOff(SEMA1);
+      ASemOff(SEMA2);
+      restart_countdown();
+      rman.add(app.repeat(BLINK_TIME_SLOW, [](){
+            static bool state = true;
+            analogWrite(SEMA1[0], 255*state);
+            state = !state;
+      }));
+    });
+
+    qdr2 = app.onPinFalling(LAPP2, [](){
+      tela2_cursor.x=30;
+      tela2_cursor.y=40;
+      print("Queimou!", &tela2, tela2_cursor, FONT_BIG);
+      print("", &tela1, tela1_cursor, FONT_BIG);
+      ASemOff(SEMA1);
+      ASemOff(SEMA2);
+      restart_countdown();
+      rman.add(app.repeat(BLINK_TIME_SLOW, [](){
+            static bool state = true;
+            analogWrite(SEMA2[0], 255*state);
+            state = !state;
+      }));
+    }); 
+
+    app.disable(qdr1);
+    app.disable(qdr2);
+    // Avoid bad readings to cause problems (NO idea why but this fixes false
+    // quemadas de largada)
+    app.delay(50, [](){
+        app.enable(qdr1);
+        app.enable(qdr2);
+    });
 }
 
+// Menu
 void menu_input(){
   static String last = "";
   char key = receiveKey(); 
-  DEB(key);
   if(key=='D') {
     if(last.toInt()>0)
       race_n_laps = last.toInt();
@@ -309,6 +328,18 @@ void menu_input(){
     print(last, &tela2, tela2_cursor, FONT_BIG);
   }
 }
+
+void game(){
+  rman.free();
+  ASemOff(SEMA2);
+  ASemOff(SEMA1);
+  print("Voltas", &tela1, tela1_cursor, FONT_BIG);
+  print(String(race_n_laps), &tela2, tela2_cursor, FONT_BIG);
+  matrixMirrowedPrint("");
+  debug("Menu");
+  rman.add(app.repeat(KEYBOARD_DELAY, menu_input));
+}
+
 
 reaction m1r, m2r, t2r;
 void test_process_input(){
@@ -356,8 +387,17 @@ void boot(){
   br = app.delay(TEST_DELAY, [](){
     //start game
     log("STARTED!!");
-    game();
     app.free(tr);
+    game();
+  });
+
+  app.repeat(KEYBOARD_RESET_DELAY, [](){
+      if(keypad.getState() == HOLD){
+        log("RESETING");
+        app.free(tr);
+        app.free(br);
+        resetProgram();
+      }
   });
 
   //trigger test mode
@@ -367,7 +407,7 @@ void boot(){
       app.free(tr);
       return;
     }
-    if (receiveKey()=='D') {
+    if ( keypad.getKey() == 'D') {
       log("TEST!!");
       testing = true;
       testMode();
@@ -381,6 +421,7 @@ void boot(){
 // Uncomment #define U8X8_USE_ARDUINO_AVR_SW_I2C_OPTIMIZATION in U8x8lib.h.
 void app_main() {
   Serial.begin(9600);
+  keypad.setHoldTime(RESET_TIME);
   randomSeed(analogRead(0));
   matrix1.begin();
   matrix2.begin();

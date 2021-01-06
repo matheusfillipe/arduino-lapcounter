@@ -1,3 +1,13 @@
+/* TODO 
+ * Best lap
+ * Fuel bar 
+ * fuel logic
+ * Menu with pit stop and failure
+ * pit stop detection
+ * refuel
+ * failure
+*/
+
 // PINS
 #define LAPP1 2
 #define LAPP2 3
@@ -12,7 +22,7 @@ const int SEMA2[3] = {48, 46, 44};
 // Constants
 #define MAX_LAPS 255
 #define BITS_LAPS 8
-#define DEFAULT_LAPS "40"
+#define DEFAULT_LAPS "4"
 
 #define DEBUG true
 #define BLINK_TIME 100
@@ -20,8 +30,10 @@ const int SEMA2[3] = {48, 46, 44};
 #define N_PINS 24
 #define DEFAULT_BLINK_DURATION 2000
 #define KEYBOARD_DELAY 20
+#define KEYBOARD_RESET_DELAY 1500
 #define TEST_DELAY 500
-#define MIN_LAP_TIME 800
+#define MIN_LAP_TIME 600.0
+#define RESET_TIME 3000
 
 #define FONT_BIG u8g2_font_logisoso18_tf
 #define FONT_MATRIX u8g2_font_trixel_square_tn
@@ -33,11 +45,11 @@ const int SEMA2[3] = {48, 46, 44};
 #define MATRIX_ANIMATION_DELAY 300
 
 #define TEST_START 0
-#define LAP_START -1 //-1
+#define LAP_START -2 //-1
 
 #define MAX_SIMUL_REACTIONS 8
 #define ONE 1
-#define THOUSAND 1000
+#define _THOUSAND 1000
 
 // Macros
 #define REACT(func) [](){func;}
