@@ -13,24 +13,10 @@ void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t 
   int str_len = msg.length() + 1; 
   u8g2_uint_t char_width = tela->getMaxCharWidth();
   tela->setFont(font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
-  // if(tela->getStrWidth(str2char(msg)) > tela->getDisplayWidth()){
-    // int max = tela->getDisplayWidth()/tela->getMaxCharWidth();
-    // String buf=msg.substring(0, max);
-    // while(tela->getStrWidth(str2char(buf)) < tela->getDisplayWidth()){
-      // buf=msg.substring(0,max);
-      // max++;
-    // }
-    // write(msg.substring(0,max), tela, cursor, font);
-    // cursor.x=0;
-    // cursor.linebreak();
-    // write(msg.substring(max), tela, cursor, font);
-    // return;  
-  // }
   char char_array[str_len];
   msg.toCharArray(char_array, str_len);
   tela->drawStr(cursor.x, cursor.y, char_array);	// write something to the internal memory
   tela->sendBuffer();					// transfer internal memory to the display
-  // cursor.inc(char_width*str_len);
 }
 
 void write(String msg, OutputPane output) {

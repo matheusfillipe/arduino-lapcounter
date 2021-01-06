@@ -56,7 +56,7 @@ OutputPane FS1(f1Cursor,    &tela1,   FONT_SMALL);
 
 OutputPane OS2(tela2_cursor,   &tela2,   FONT_BIG);
 OutputPane BLS2(bl2Cursor,   &tela2,   FONT_SMALL);
-OutputPane FS2(bl2Cursor,    &tela2,   FONT_SMALL);
+OutputPane FS2(f2Cursor,    &tela2,   FONT_SMALL);
 
 OutputPane MS1(matrix1_cursor, &matrix1, FONT_MATRIX);
 OutputPane MS2(matrix2_cursor, &matrix2, FONT_MATRIX);
@@ -73,21 +73,31 @@ void menu_input();
 void printWin(int n){
     log("Player" + String(n) + " won");
     if(n==1){
-      print("Won!", OS1);
-      print("Lost!", OS2);
+      print(TEXT_WIN, OS1);
+      write(TEXT_BESTLAP+timestamp(p1bltime), BLS1);
+      BLS1.cursor.x+=80;
+      write(timestamp(p1Laps[p1_laps-1].lap_time), BLS1);
+      BLS1.cursor.x-=80;
+
+      print(TEXT_LOOSE, OS2);
+      write(TEXT_BESTLAP+timestamp(p2bltime), BLS2);
+      BLS2.cursor.x+=80;
+      write(timestamp(p2Laps[p2_laps-1].lap_time), BLS2);
+      BLS2.cursor.x-=80;
     }
     else if(n==2){
-      print("Lost!", OS1);
-      print("Won!", OS2);
+      print(TEXT_WIN, OS2);
+      write(TEXT_BESTLAP+timestamp(p2bltime), BLS2);
+      BLS2.cursor.x+=80;
+      write(timestamp(p2Laps[p2_laps-1].lap_time), BLS2);
+      BLS2.cursor.x-=80;
+
+      print(TEXT_LOOSE, OS1);
+      write(TEXT_BESTLAP+timestamp(p1bltime), BLS1);
+      BLS1.cursor.x+=80;
+      write(timestamp(p1Laps[p1_laps-1].lap_time), BLS1);
+      BLS1.cursor.x-=80;
     }
-    BLS1.cursor.x+=80;
-    BLS2.cursor.x+=80;
-    write(timestamp(p1Laps[p1_laps-1].lap_time), BLS1);
-    write(timestamp(p2Laps[p2_laps-1].lap_time), BLS2);
-    BLS1.cursor.x-=80;
-    BLS2.cursor.x-=80;
-    write("BS: "+timestamp(p1bltime), BLS1);
-    write("BS: "+timestamp(p2bltime), BLS2);
 }
 
 int race_n_laps = String(DEFAULT_LAPS).toInt();
@@ -126,8 +136,23 @@ void win(int n){
 
 unsigned long start;
 
+void writeFuel(int fuel, OutputPane FS){
+    FS.tela->setFont(FS.font);
+    FS.tela->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
+    FS.tela->drawBox(25, 5, fuel*(122-25)/100, 5);
+}
 
-bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS){
+void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPane &LS, unsigned long fuel, OutputPane &FS){
+    FS.tela->clear();
+    writeFuel(fuel, FS);
+    FS.tela->setFont(OS.font);
+    OS.tela->drawStr(OS.cursor.x, OS.cursor.y,   timestamp(dt).c_str()); 
+    FS.tela->setFont(LS.font);
+    LS.tela->drawStr(LS.cursor.x, LS.cursor.y, (TEXT_BESTLAP+timestamp(pbltime)).c_str());
+    FS.tela->sendBuffer();
+}
+
+bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS, OutputPane &FS, int &fuel){
     if(digitalRead(pin)==0)
       return animating;
     if(p_laps < 0) {
@@ -140,7 +165,7 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
       total_time += pLaps[i].lap_time;
     }
     unsigned long dt = (millis() - start) - total_time; 
-    if (dt < MIN_LAP_TIME){  
+    if(dt < MIN_LAP_TIME){  
       debug("Ignoring"); 
       return animating; 
     } 
@@ -150,21 +175,18 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
       win(player);
       return animating;
     }
-    print(timestamp(dt), OS); 
     pbltime = pbltime > dt || pbltime == 0 ? dt : pbltime;
     animating = matrix_print(++p_laps);
-    write("BS: "+timestamp(pbltime), BLS);
-
-    if (animating)
+    printLap(dt, OS, pbltime, BLS, fuel, FS);
+    if(animating)
       app.free(matrix_print_reaction);
     tone(NOTE_E4, 100);
+
+    fuel -= 10;
+    fuel = fuel < 0 ? 0 : fuel;
     return animating;
 }
 
-void writeFuel(int fuel, OutputPane &OS){
-  OS.write("F: ");
-  OS.tela->drawBox(25, 5, fuel*(122-25)/100, 5);
-}
 
 reaction qdr1, qdr2;
 void race(){
@@ -173,8 +195,6 @@ void race(){
   p2_laps = LAP_START;
   p1bltime = 0;
   p2bltime = 0;
-  // writeFuel(100, FS1);
-  // writeFuel(100, FS2);
 
   start = millis();
   rman.add(bindKey('D', game));
@@ -182,19 +202,13 @@ void race(){
   rman.add(app.onPinRising(LAPP1, [](){
       static bool animating = false;
       static int fuel = 100;
-      animating = handleSensorEntered(1, LAPP1, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1);
-      // writeFuel(fuel, FS1)
-      fuel-=10;
-      fuel = fuel < 0 ? 0 : fuel;
+      animating = handleSensorEntered(1, LAPP1, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1, fuel);
   }));
 
   rman.add(app.onPinRising(LAPP2, [](){
       static bool animating = false;
       static int fuel = 100;
-      animating = handleSensorEntered(2, LAPP2, animating, p2bltime, p2_laps, p2Laps, matrix2_print_reaction, matrix2_print, OS2, BLS2);
-      // writeFuel(fuel, FS2);
-      fuel-=10;
-      fuel = fuel < 0 ? 0 : fuel;
+      animating = handleSensorEntered(2, LAPP2, animating, p2bltime, p2_laps, p2Laps, matrix2_print_reaction, matrix2_print, OS2, BLS2, FS2, fuel);
   }));
 }
 
@@ -260,15 +274,15 @@ void startup(){
     rman.free();
     ASemOff(SEMA1);
     ASemOff(SEMA2);
-    print("Ready?", &tela1, tela1_cursor, FONT_BIG);
-    print("Ready?", &tela2, tela2_cursor, FONT_BIG);
+    print(TEXT_STARTUP_READY, &tela1, tela1_cursor, FONT_BIG);
+    print(TEXT_STARTUP_READY, &tela2, tela2_cursor, FONT_BIG);
     rman.add(app.delay(1000, REACT(countdown())));
 
     // Setup sensors
     qdr1 = app.onPinFalling(LAPP1, [](){
       tela1_cursor.x=30;
       tela1_cursor.y=40;
-      print("Queimou!", &tela1, tela1_cursor, FONT_BIG);
+      print(TEXT_STARTUP_BURNED, &tela1, tela1_cursor, FONT_BIG);
       print("", &tela2, tela2_cursor, FONT_BIG);
       ASemOff(SEMA1);
       ASemOff(SEMA2);
@@ -283,7 +297,7 @@ void startup(){
     qdr2 = app.onPinFalling(LAPP2, [](){
       tela2_cursor.x=30;
       tela2_cursor.y=40;
-      print("Queimou!", &tela2, tela2_cursor, FONT_BIG);
+      print(TEXT_STARTUP_BURNED, &tela2, tela2_cursor, FONT_BIG);
       print("", &tela1, tela1_cursor, FONT_BIG);
       ASemOff(SEMA1);
       ASemOff(SEMA2);
@@ -333,7 +347,7 @@ void game(){
   rman.free();
   ASemOff(SEMA2);
   ASemOff(SEMA1);
-  print("Voltas", &tela1, tela1_cursor, FONT_BIG);
+  print(TEXT_MENU_LAPS, &tela1, tela1_cursor, FONT_BIG);
   print(String(race_n_laps), &tela2, tela2_cursor, FONT_BIG);
   matrixMirrowedPrint("");
   debug("Menu");

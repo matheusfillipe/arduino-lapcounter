@@ -1,6 +1,4 @@
 /* TODO 
- * Best lap
- * Fuel bar 
  * fuel logic
  * Menu with pit stop and failure
  * pit stop detection
@@ -50,6 +48,17 @@ const int SEMA2[3] = {48, 46, 44};
 #define MAX_SIMUL_REACTIONS 8
 #define ONE 1
 #define _THOUSAND 1000
+
+// TEXT
+#define TEXT_FUEL "F"
+#define TEXT_WIN "Win!"
+#define TEXT_LOOSE "Lost!"
+#define TEXT_BESTLAP "BS: "
+#define TEXT_STARTUP_BURNED "Queimou!"
+#define TEXT_STARTUP_READY "Ready?"
+#define TEXT_STARTUP_READY "Ready?"
+#define TEXT_MENU_LAPS "Voltas:"
+#define TEXT_MENU_PITSTOP "Pit Stop"
 
 // Macros
 #define REACT(func) [](){func;}
