@@ -12,12 +12,19 @@
 #include "react.h"
 
 // Classes
-
 typedef struct Lap_struct {
   unsigned int player : 1;
   int num : BITS_LAPS;
   unsigned long lap_time;
 } Lap;
+
+class GameOptions{
+  public:
+    int n_laps;
+    int autonomy;
+    int fails;
+    GameOptions(int n_laps, int autonomy, int fails): n_laps(n_laps), autonomy(autonomy), fails(fails){}
+};
 
 
 // Variables
@@ -41,8 +48,7 @@ Cursor matrix1_cursor(8, 8, 8);
 Cursor matrix2_cursor(8, 8, 8);
 ReactionManager rman;
 
-int race_n_laps = String(DEFAULT_LAPS).toInt();
-int autonomy = AUTONOMY;
+GameOptions options(String(DEFAULT_LAPS).toInt(), DEFAULT_AUTONOMY, DEFAULT_FAILURE);
 
 // Screens
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C tela1(U8G2_R0, /* clock=*/ 14, /* data=*/ 16);
@@ -141,7 +147,8 @@ void writeFuel(int fuel, OutputPane FS){
     FS.tela->setFont(FS.font);
     FS.tela->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
     FS.tela->drawBox(15, 5, fuel*(128-45)/100, 5);
-    FS.tela->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/autonomy)).c_str());	
+    FS.tela->drawLine(15, 8, 15+fuel*(128-45)/100, 8);
+    FS.tela->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/options.autonomy)).c_str());	
 }
 
 void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPane &LS, unsigned long fuel, OutputPane &FS){
@@ -160,6 +167,7 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
     if(p_laps < 0) {
       p_laps++;
       OS.clear();
+      fuel=100;
       return animating;
     }
     unsigned long total_time = 0;
@@ -173,34 +181,38 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
     } 
     pLaps[p_laps].lap_time = dt;
 
-    if(p_laps >= race_n_laps - 1){
+    if(p_laps >= options.n_laps - 1){
       win(player);
       return animating;
     }
+    if(fuel - 200/options.autonomy <= 0)
+      tone(NOTE_E5, 500);
+    else
+      tone(NOTE_E4, 150);
     pbltime = pbltime > dt || pbltime == 0 ? dt : pbltime;
     animating = matrix_print(++p_laps);
     printLap(dt, OS, pbltime, BLS, fuel, FS);
     if(animating)
       app.free(matrix_print_reaction);
 
-    fuel -= 100/autonomy;
+    fuel -= 100/options.autonomy;
     fuel = fuel < 0 ? 0 : fuel;
-    if(fuel - 100/autonomy <= 0)
-      tone(NOTE_E5, 500);
-    else
-      tone(NOTE_E4, 150);
 
     return animating;
+}
+
+void resetPlayers(){
+  p1_laps = LAP_START;
+  p2_laps = LAP_START;
+  p1bltime = 0;
+  p2bltime = 0;
 }
 
 
 reaction qdr1, qdr2;
 void race(){
   debug("Race");
-  p1_laps = LAP_START;
-  p2_laps = LAP_START;
-  p1bltime = 0;
-  p2bltime = 0;
+  resetPlayers();
 
   start = millis();
   rman.add(bindKey('D', game));
@@ -326,35 +338,119 @@ void startup(){
 }
 
 // Menu
+void printMenu(String msg, String num){
+  FS1.tela->clear();
+  iwrite(TEXT_MENU_HEADER, FS1);
+  OS1.cursor.y+=10;
+  OS1.cursor.x=0;
+  iwrite(msg, OS1);
+  OS1.cursor.y-=10;
+  OS1.tela->sendBuffer();
+  print(num, OS2);
+  write(TEXT_MENU_CONFIRM, FS2);
+}
+
+int touched[] = {0, 0, 0};
+void handleNumberInput(char key, String &last, int digits, int min_, int max_){
+  if (last.length()>digits - 1)
+    last = "";
+  last += String(key);
+  if (last.toInt()>max_)
+    last = String(max_);
+  if (last.toInt() < min_ && last.length()>digits - 1){
+    String zeroes = "";
+    String _min(min_);
+    for(int i = 0; i < digits - _min.length(); i++)
+      zeroes += "0";
+    last = zeroes+_min;
+  }
+}
+
+void printMenuValue(String last){
+  tela2_cursor.x=0;
+  tela2_cursor.y=40;
+  tela2.clear();
+  iwrite(TEXT_MENU_CONFIRM, FS2);
+  iwrite(last, &tela2, tela2_cursor, FONT_BIG);
+  tela2.updateDisplayArea(0, 0, 8, 6);
+}
+
 void menu_input(){
-  static String last = "";
+  static String laps(options.n_laps);
+  static String autonomy(options.autonomy);
+  static String fails(options.fails);
+  static int menu_opt = 0;
   char key = receiveKey(); 
-  if(key=='D') {
-    if(last.toInt()>0)
-      race_n_laps = last.toInt();
-    log("Set "+String(race_n_laps)+" laps.");
-    startup();
+  switch (key){
+    case 'A': 
+      printMenu(TEXT_MENU_LAPS, laps);
+      menu_opt = 0;
+      break;
+    case 'B': 
+      printMenu(TEXT_MENU_AUTONOMY, autonomy.toInt() == 0 ? TEXT_MENU_NOTUSE : autonomy );
+      menu_opt = 1;
+      break;
+    case 'C': 
+      printMenu(TEXT_MENU_FAILURE, fails.toInt() == 0 ? TEXT_MENU_NOTUSE : fails );
+      menu_opt = 2;
+      break;
+    case 'D': 
+      if(laps.toInt()>0)
+        options.n_laps = laps.toInt();
+      log("Set "+String(options.n_laps)+" laps.");
+      if(autonomy.toInt()>=0)
+        options.autonomy = autonomy.toInt();
+      log("Set "+String(options.autonomy)+" autonomy.");
+      if(fails.toInt()>=0)
+        options.fails = fails.toInt();
+      log("Set "+String(options.fails)+" fails.");
+      startup();
+      break;
   }
   if(key != '-' && key != ' ' && key && isdigit(key)){
-    if (last.length()>2)
-      last = "";
-    last += String(key);
-    if (last.toInt()>MAX_LAPS)
-      last = String(MAX_LAPS);
-    if (last.toInt() == 0 && last.length()>2)
-      last = "001";
-    tela2_cursor.x=0;
-    tela2_cursor.y=40;
-    print(last, &tela2, tela2_cursor, FONT_BIG);
+    switch (menu_opt){
+      case 0:
+        laps = touched[0] ? laps : "";
+        handleNumberInput(key, laps, 3, 1, MAX_LAPS);
+        printMenuValue(laps);
+        touched[0] = 1;
+        break;
+      case 1:
+        autonomy = touched[1] ? autonomy : "";
+        handleNumberInput(key, autonomy, 3, 0, MAX_LAPS);
+        if(autonomy.toInt() == 0){
+          printMenuValue(TEXT_MENU_NOTUSE);
+          touched[1] = 0;
+        }
+        else {
+          printMenuValue(autonomy);
+          touched[1] = 1;
+        }
+        break;
+      case 2:
+        fails = touched[2] ? fails : "";
+        handleNumberInput(key, fails, 3, 0, MAX_LAPS);
+        if(fails.toInt() == 0){ 
+          printMenuValue(TEXT_MENU_NOTUSE);
+          touched[2] = 0;
+        }
+        else{ 
+          printMenuValue(fails);
+          touched[2] = 1;
+        }
+        break;
+    }
   }
 }
 
 void game(){
   rman.free();
+  touched[0] = 0;
+  touched[1] = 0;
+  touched[2] = 0;
   ASemOff(SEMA2);
   ASemOff(SEMA1);
-  print(TEXT_MENU_LAPS, &tela1, tela1_cursor, FONT_BIG);
-  print(String(race_n_laps), &tela2, tela2_cursor, FONT_BIG);
+  printMenu(TEXT_MENU_LAPS, String(options.n_laps));
   matrixMirrowedPrint("");
   debug("Menu");
   rman.add(app.repeat(KEYBOARD_DELAY, menu_input));

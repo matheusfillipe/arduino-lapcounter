@@ -9,21 +9,29 @@ const char* str2char(String str){
   return char_array;
 }
 
-void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
+void iwrite(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
   int str_len = msg.length() + 1; 
   u8g2_uint_t char_width = tela->getMaxCharWidth();
   tela->setFont(font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
   char char_array[str_len];
   msg.toCharArray(char_array, str_len);
   tela->drawStr(cursor.x, cursor.y, char_array);	// write something to the internal memory
+}
+
+void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
+  iwrite(msg, tela, cursor, font);
   tela->sendBuffer();					// transfer internal memory to the display
+}
+
+void iwrite(String msg, OutputPane output) {
+  iwrite(msg, output.tela, output.cursor, output.font);
 }
 
 void write(String msg, OutputPane output) {
   write(msg, output.tela, output.cursor, output.font);
 }
 
-void print(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
+void print(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL) {
   tela->clearBuffer();
   write(msg, tela, cursor, font);
 }
@@ -249,3 +257,5 @@ String timestamp(unsigned long dt){
       ms += "0";
     return String(sec+"."+ms);
 }
+
+

@@ -1,6 +1,5 @@
 /* TODO 
- * fuel logic
- * Menu with pit stop and failure
+ * Invalidate laps
  * pit stop detection
  * refuel
  * failure
@@ -21,7 +20,8 @@ const int SEMA2[3] = {48, 46, 44};
 #define MAX_LAPS 255
 #define BITS_LAPS 8
 #define DEFAULT_LAPS "4"
-#define AUTONOMY 100
+#define DEFAULT_AUTONOMY 10
+#define DEFAULT_FAILURE 0
 
 #define DEBUG true
 #define BLINK_TIME 100
@@ -31,7 +31,7 @@ const int SEMA2[3] = {48, 46, 44};
 #define KEYBOARD_DELAY 20
 #define KEYBOARD_RESET_DELAY 1500
 #define TEST_DELAY 500
-#define MIN_LAP_TIME 600.0
+#define MIN_LAP_TIME 900.0
 #define RESET_TIME 3000
 
 #define FONT_BIG u8g2_font_logisoso18_tf
@@ -60,10 +60,13 @@ const int SEMA2[3] = {48, 46, 44};
 #define TEXT_STARTUP_READY "Ready?"
 #define TEXT_STARTUP_READY "Ready?"
 
-#define TEXT_MENU_LAPS "Voltas: "
+#define TEXT_MENU_LAPS "Laps: "
+#define TEXT_MENU_HEADER "A)LAP B)PIT C)FAIL"
+#define TEXT_MENU_CONFIRM "D)CONFIRM"
 #define TEXT_MENU_PITSTOP "Pit Stop"
-#define TEXT_MENU_AUTONOMY "Autonomia: "
+#define TEXT_MENU_AUTONOMY "Autonomy: "
 #define TEXT_MENU_FAILURE "Failure: "
+#define TEXT_MENU_NOTUSE "NA"
 
 // Macros
 #define REACT(func) [](){func;}
