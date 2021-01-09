@@ -10,6 +10,7 @@
 #include "definitions.h"
 #include "display.h"
 #include "react.h"
+#include "assets.h"
 
 // Classes
 typedef struct Lap_struct {
@@ -37,6 +38,8 @@ int p2_laps;
 
 char inputBuffer[4];
 bool gameloop = false;
+bool mute = false;
+
 Cursor tela1_cursor(128, 64, 18, 22, 5);
 Cursor tela2_cursor(128, 64, 18, 22, 5);
 Cursor bl1Cursor(128, 64, 60);
@@ -78,8 +81,25 @@ void race();
 void startup();
 void menu_input();
 
+void negativeSound(){
+  app.delay(10, REACT(tone(NOTE_C4, 200)));
+  app.delay(400, REACT(tone(NOTE_C4, 600)));
+}
+void victorySound(){
+  int offset = 2000;
+  int t = 200;
+  int spacing = 20;
+  app.delay(offset,             REACT(tone(NOTE_E4, 200)));
+  app.delay(offset+spacing+t,   REACT(tone(NOTE_E4, 200)));
+  app.delay(offset+spacing+2*t, REACT(tone(NOTE_D4, 200*4)));
+  app.delay(offset+spacing+6*t, REACT(tone(NOTE_D4, 200)));
+  app.delay(offset+spacing+7*t, REACT(tone(NOTE_D4, 200)));
+  app.delay(offset+spacing+8*t, REACT(tone(NOTE_C4, 200*4)));
+}
+
 void printWin(int n){
-    log("Player" + String(n) + " won");
+    serialSend("--WIN--");
+    serialSend("Player" + String(n) + " won");
     if(n==1){
       print(TEXT_WIN, OS1);
       write(TEXT_BESTLAP+timestamp(p1bltime), BLS1);
@@ -108,12 +128,26 @@ void printWin(int n){
     }
 }
 
+void serialTranferLaps(){
+    serialSend("--PLAYER 1--");
+    for(int i = 0; i < p1_laps; i++){
+      serialSend(String(i+1)+": "+String(p1Laps[i].lap_time));
+    }
+    serialSend("--PLAYER 2--");
+    for(int i = 0; i < p2_laps; i++){
+      serialSend(String(i+1)+": "+String(p2Laps[i].lap_time));
+    }
+    serialSend("----");
+}
+
 void win(int n){
   rman.free();
   matrix1.clear();
   matrix2.clear();
   tone(NOTE_A5, 1500);
+  victorySound();
   printWin(n);
+  serialTranferLaps();
 
   if(n==1){
     rman.add(app.repeat(500, [](){
@@ -161,9 +195,11 @@ void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPan
     FS.tela->sendBuffer();
 }
 
+reaction pitstop[2];
 bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS, OutputPane &FS, int &fuel){
-    if(digitalRead(pin)==0)
+    if(digitalRead(pin)==0){
       return animating;
+    }
     if(p_laps < 0) {
       p_laps++;
       OS.clear();
@@ -179,24 +215,35 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
       debug("Ignoring"); 
       return animating; 
     } 
+
+    fuel -= 100/options.autonomy;
+    if (fuel <= 0){
+      fuel = 0;
+      negativeSound();
+      OS.tela->clear();
+      OS.tela->drawXBMP(40, 14, fuel_width, fuel_height, fuel_bits);
+      // OS.tela->drawXBMP(0, 0, car_width, car_height, car_bits);
+      OS.tela->sendBuffer();
+      return;
+    }
+
     pLaps[p_laps].lap_time = dt;
 
     if(p_laps >= options.n_laps - 1){
       win(player);
       return animating;
     }
-    if(fuel - 200/options.autonomy <= 0)
+
+    if(fuel - 100/options.autonomy <= 0)
       tone(NOTE_E5, 500);
     else
       tone(NOTE_E4, 150);
+
     pbltime = pbltime > dt || pbltime == 0 ? dt : pbltime;
     animating = matrix_print(++p_laps);
     printLap(dt, OS, pbltime, BLS, fuel, FS);
     if(animating)
       app.free(matrix_print_reaction);
-
-    fuel -= 100/options.autonomy;
-    fuel = fuel < 0 ? 0 : fuel;
 
     return animating;
 }
@@ -220,6 +267,16 @@ void race(){
   rman.add(app.onPinRising(LAPP1, [](){
       static bool animating = false;
       static int fuel = 100;
+      log(String(digitalRead(LAPP1)));
+
+      // if (p1_laps >= 0 ){ // PITSTOP?
+            // pitstop[player-1] = app.repeat(PITSTOP_TIME, [](){log("refuel");});
+            // app.enable(pitstop[player-1]);
+            // debug("enabling pitstop");
+      // }
+      // app.disable(pitstop[player-1]);
+      // debug("disabling pitstop");
+
       animating = handleSensorEntered(1, LAPP1, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1, fuel);
   }));
 
@@ -240,8 +297,7 @@ void restart_countdown(){
   bindKey('D', [](){
     startup();
   });
-  app.delay(10, REACT(tone(NOTE_C4, 200)));
-  app.delay(400, REACT(tone(NOTE_C4, 600)));
+  negativeSound();
 }
 
 void countdown(){
@@ -347,7 +403,7 @@ void printMenu(String msg, String num){
   OS1.cursor.y-=10;
   OS1.tela->sendBuffer();
   print(num, OS2);
-  write(TEXT_MENU_CONFIRM, FS2);
+  write(String(TEXT_MENU_CONFIRM) + ( mute ? " M" : "" ), FS2);
 }
 
 int touched[] = {0, 0, 0};
@@ -367,12 +423,9 @@ void handleNumberInput(char key, String &last, int digits, int min_, int max_){
 }
 
 void printMenuValue(String last){
-  tela2_cursor.x=0;
-  tela2_cursor.y=40;
-  tela2.clear();
-  iwrite(TEXT_MENU_CONFIRM, FS2);
+  FS1.tela->clearBuffer();
   iwrite(last, &tela2, tela2_cursor, FONT_BIG);
-  tela2.updateDisplayArea(0, 0, 8, 6);
+  tela2.updateDisplayArea(0, 2, 8, 6);
 }
 
 void menu_input(){
@@ -382,6 +435,13 @@ void menu_input(){
   static int menu_opt = 0;
   char key = receiveKey(); 
   switch (key){
+    case '*': 
+      mute = !mute;
+      log("Muting");
+      FS1.tela->clearBuffer();
+      iwrite(String(TEXT_MENU_CONFIRM) + ( mute ? " M" : "" ), FS2);
+      tela2.updateDisplayArea(0, 0, 16, 2);
+      break;
     case 'A': 
       printMenu(TEXT_MENU_LAPS, laps);
       menu_opt = 0;
@@ -549,12 +609,7 @@ void app_main() {
   boot();
 
 
-  // #define test_width 16
-  // #define test_height 16
-  // static unsigned char test_bits[] = {
-     // 0xff, 0xff, 0x01, 0x80, 0xfd, 0xbf, 0x05, 0xa0, 0xf5, 0xaf, 0x15, 0xa8,
-     // 0xd5, 0xab, 0x55, 0xaa, 0x55, 0xaa, 0xd5, 0xab, 0x15, 0xa8, 0xf5, 0xaf,
-     // 0x05, 0xa0, 0xfd, 0xbf, 0x01, 0x80, 0xff, 0xff};
+
   // tela1.clear();
   // tela1.drawXBM( 0, 0, test_width, test_height, test_bits);
   // tela1.sendBuffer();

@@ -1,5 +1,4 @@
 /* TODO 
- * Invalidate laps
  * pit stop detection
  * refuel
  * failure
@@ -34,6 +33,9 @@ const int SEMA2[3] = {48, 46, 44};
 #define MIN_LAP_TIME 900.0
 #define RESET_TIME 3000
 
+#define PITSTOP_TIME 500
+#define PITSTOP_REFUEL_AMMOUNT 20
+
 #define FONT_BIG u8g2_font_logisoso18_tf
 #define FONT_MATRIX u8g2_font_trixel_square_tn
 #define FONT_SMALL  u8g2_font_7x13B_tf
@@ -62,7 +64,7 @@ const int SEMA2[3] = {48, 46, 44};
 
 #define TEXT_MENU_LAPS "Laps: "
 #define TEXT_MENU_HEADER "A)LAP B)PIT C)FAIL"
-#define TEXT_MENU_CONFIRM "D)CONFIRM"
+#define TEXT_MENU_CONFIRM "D)START *)MUTE"
 #define TEXT_MENU_PITSTOP "Pit Stop"
 #define TEXT_MENU_AUTONOMY "Autonomy: "
 #define TEXT_MENU_FAILURE "Failure: "
@@ -85,7 +87,7 @@ char keys[rows][cols] = {
   {'1','2','3','A'},
   {'4','5','6','B'},
   {'7','8','9','C'},
-  {'#','0','*','D'}
+  {'*','0','#','D'}
 };
 
 byte rowPins[rows] = {22, 24, 26, 28}; //connect to the row pinouts of the keypad
@@ -102,3 +104,8 @@ void debug(String msg) {
 void log(String msg){
   Serial.println("--> " + msg);
 }
+
+void serialSend(String msg){
+  Serial.println(msg);
+}
+

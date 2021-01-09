@@ -41,9 +41,11 @@ void print(String msg, OutputPane &output) {
 }
 
 void tone(int freq, int time){
-  analogWrite(A0, 255);
-  tone(BUZZER, freq, time);
-  app.delay(time, REACT(analogWrite(A0, 0)));
+  if(!mute){
+    analogWrite(A0, 255);
+    tone(BUZZER, freq, time);
+    app.delay(time, REACT(analogWrite(A0, 0)));
+  }
 }
 
 void matrixMirrowedDrawBox(u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h){
