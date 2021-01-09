@@ -83,12 +83,16 @@ void mirrowedPrint(String msg){
   tela1.drawStr(tela1_cursor.x, tela1_cursor.y, char_array);	
   tela2.drawStr(tela2_cursor.x, tela2_cursor.y, char_array);	
   if(toggle){
-    tela1.sendBuffer();					
-    tela2.sendBuffer();					
+    tela1.updateDisplayArea(3, 2, 12, 4);
+    tela2.updateDisplayArea(3, 2, 12, 4);
+    // tela1.sendBuffer();					
+    // tela2.sendBuffer();					
   }
   else{
-    tela2.sendBuffer();					
-    tela1.sendBuffer();					
+    tela1.updateDisplayArea(3, 2, 12, 4);
+    tela2.updateDisplayArea(3, 2, 12, 4);
+    // tela2.sendBuffer();					
+    // tela1.sendBuffer();					
   }
   toggle = !toggle;
 }

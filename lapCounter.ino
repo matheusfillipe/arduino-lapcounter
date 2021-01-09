@@ -35,6 +35,10 @@ unsigned long p1bltime;
 unsigned long p2bltime;
 int p1_laps;
 int p2_laps; 
+int p1_fuel;
+int p2_fuel;
+bool P1justRefueled;
+bool P2justRefueled;
 
 char inputBuffer[4];
 bool gameloop = false;
@@ -81,22 +85,31 @@ void race();
 void startup();
 void menu_input();
 
+// Sounds
 void negativeSound(){
   app.delay(10, REACT(tone(NOTE_C4, 200)));
   app.delay(400, REACT(tone(NOTE_C4, 600)));
 }
+
+#define VICT_TIME 220
 void victorySound(){
   int offset = 2000;
-  int t = 200;
-  int spacing = 20;
-  app.delay(offset,             REACT(tone(NOTE_E4, 200)));
-  app.delay(offset+spacing+t,   REACT(tone(NOTE_E4, 200)));
-  app.delay(offset+spacing+2*t, REACT(tone(NOTE_D4, 200*4)));
-  app.delay(offset+spacing+6*t, REACT(tone(NOTE_D4, 200)));
-  app.delay(offset+spacing+7*t, REACT(tone(NOTE_D4, 200)));
-  app.delay(offset+spacing+8*t, REACT(tone(NOTE_C4, 200*4)));
+  int spacing = 30;
+  app.delay(offset,                        REACT(tone(NOTE_E4, VICT_TIME)));
+  app.delay(offset+spacing + VICT_TIME,    REACT(tone(NOTE_E4, VICT_TIME)));
+  app.delay(offset+2*spacing+2*VICT_TIME,  REACT(tone(NOTE_D4, VICT_TIME*4)));
+  app.delay(offset+3*spacing+8*VICT_TIME,  REACT(tone(NOTE_D4, VICT_TIME)));
+  app.delay(offset+4*spacing+9*VICT_TIME,  REACT(tone(NOTE_D4, VICT_TIME)));
+  app.delay(offset+5*spacing+10*VICT_TIME, REACT(tone(NOTE_C4, VICT_TIME*4)));
 }
 
+void alertSound(){
+  app.delay(10,           REACT(tone(NOTE_C5,   VICT_TIME)));
+  app.delay(10+VICT_TIME, REACT(tone(NOTE_C5, 3*VICT_TIME)));
+}
+
+
+// Race
 void printWin(int n){
     serialSend("--WIN--");
     serialSend("Player" + String(n) + " won");
@@ -178,6 +191,8 @@ void win(int n){
 unsigned long start;
 
 void writeFuel(int fuel, OutputPane FS){
+    if (options.autonomy == 0)
+      return;
     FS.tela->setFont(FS.font);
     FS.tela->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
     FS.tela->drawBox(15, 5, fuel*(128-45)/100, 5);
@@ -185,48 +200,53 @@ void writeFuel(int fuel, OutputPane FS){
     FS.tela->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/options.autonomy)).c_str());	
 }
 
-void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPane &LS, unsigned long fuel, OutputPane &FS){
+void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPane &LS, int fuel, OutputPane &FS){
     FS.tela->clear();
     writeFuel(fuel, FS);
-    FS.tela->setFont(OS.font);
+    OS.tela->setFont(OS.font);
     OS.tela->drawStr(OS.cursor.x, OS.cursor.y,   timestamp(dt).c_str()); 
     FS.tela->setFont(LS.font);
     LS.tela->drawStr(LS.cursor.x, LS.cursor.y, (TEXT_BESTLAP+timestamp(pbltime)).c_str());
     FS.tela->sendBuffer();
 }
 
-reaction pitstop[2];
-bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS, OutputPane &FS, int &fuel){
-    if(digitalRead(pin)==0){
-      return animating;
-    }
+bool addLap(int player, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS, OutputPane &FS, int &fuel, bool justRefueled){
+  // Ignore first pass
     if(p_laps < 0) {
       p_laps++;
       OS.clear();
       fuel=100;
       return animating;
     }
+
+    // Count total time
     unsigned long total_time = 0;
     for(int i = 0; i < p_laps; i++){
       total_time += pLaps[i].lap_time;
     }
+
+    // Determine lap time
     unsigned long dt = (millis() - start) - total_time; 
     if(dt < MIN_LAP_TIME){  
       debug("Ignoring"); 
       return animating; 
     } 
 
-    fuel -= 100/options.autonomy;
-    if (fuel <= 0){
-      fuel = 0;
-      negativeSound();
-      OS.tela->clear();
-      OS.tela->drawXBMP(40, 14, fuel_width, fuel_height, fuel_bits);
-      // OS.tela->drawXBMP(0, 0, car_width, car_height, car_bits);
-      OS.tela->sendBuffer();
-      return;
+    // Fuel decrement
+    if (!justRefueled && options.autonomy != 0){
+      fuel -= 100/options.autonomy;
+      if (fuel <= 0){
+        fuel = 0;
+        negativeSound();
+        OS.tela->clear();
+        OS.tela->drawXBMP(40, 14, fuel_width, fuel_height, fuel_bits);
+        // OS.tela->drawXBMP(0, 0, car_width, car_height, car_bits);
+        OS.tela->sendBuffer();
+        return;
+      }
     }
 
+    // Store lap time
     pLaps[p_laps].lap_time = dt;
 
     if(p_laps >= options.n_laps - 1){
@@ -234,11 +254,15 @@ bool handleSensorEntered(int player, int pin, bool animating, unsigned long &pbl
       return animating;
     }
 
-    if(fuel - 100/options.autonomy <= 0)
+    // Lap count sound
+    if (fuel <= 0)
+      negativeSound();
+    else if(fuel - 100/options.autonomy <= 0)
       tone(NOTE_E5, 500);
     else
       tone(NOTE_E4, 150);
 
+    // Draw stuff
     pbltime = pbltime > dt || pbltime == 0 ? dt : pbltime;
     animating = matrix_print(++p_laps);
     printLap(dt, OS, pbltime, BLS, fuel, FS);
@@ -253,8 +277,25 @@ void resetPlayers(){
   p2_laps = LAP_START;
   p1bltime = 0;
   p2bltime = 0;
+  p1_fuel = 100;
+  p2_fuel = 100;
+  P1justRefueled = false;
+  P2justRefueled = false;
 }
 
+reaction pitstop[2];
+reaction pitstop_request[2];
+void refuel(int player, int &p_fuel, OutputPane &FS){
+  p_fuel += PITSTOP_REFUEL_AMMOUNT;
+  p1_fuel = p_fuel <= 100 ? p_fuel : 100;
+  DEB(p1_fuel);
+  writeFuel(p_fuel, FS);
+  FS.tela->updateDisplayArea(0, 0, 16, 3);
+  if(p_fuel >= 100) {
+      tone(NOTE_E5, 1000);
+      app.disable(pitstop[player - 1]);
+  }
+}
 
 reaction qdr1, qdr2;
 void race(){
@@ -264,26 +305,54 @@ void race(){
   start = millis();
   rman.add(bindKey('D', game));
 
-  rman.add(app.onPinRising(LAPP1, [](){
-      static bool animating = false;
-      static int fuel = 100;
-      log(String(digitalRead(LAPP1)));
+  rman.add(app.onPinChange(LAPP1, [](){
+    static const int player = 1;
+    static bool animating = false;
+    static bool wasEntered = false;
+    int value = digitalRead(LAPP1);
+    debug(String(value));
 
-      // if (p1_laps >= 0 ){ // PITSTOP?
-            // pitstop[player-1] = app.repeat(PITSTOP_TIME, [](){log("refuel");});
-            // app.enable(pitstop[player-1]);
-            // debug("enabling pitstop");
-      // }
-      // app.disable(pitstop[player-1]);
-      // debug("disabling pitstop");
+    app.free(pitstop[player-1]);
+    app.free(pitstop_request[player-ONE]);
 
-      animating = handleSensorEntered(1, LAPP1, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1, fuel);
+    if(wasEntered && value == HIGH){ // Leave sensor
+      animating = addLap(player, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1, p1_fuel, P1justRefueled);
+      wasEntered = false;
+      P1justRefueled = false;
+    }else if ( options.autonomy > 0 && p1_laps >= 0 ){ // PITSTOP?
+      pitstop_request[player-ONE] = app.delay(2*PITSTOP_TIME, [](){
+        if(digitalRead(LAPP1) == HIGH){
+          app.free(pitstop[player-ONE]);
+          app.free(pitstop_request[player-ONE]);
+          return;
+        }
+        debug("Pit Stop");
+        OS1.tela->clear();
+        OS1.cursor.x = 5;
+        iwrite(TEXT_RACE_PITSTOP, OS1);
+        OS1.cursor.x = 30;
+        OS1.tela->updateDisplayArea(0, 2, 16, 4);
+        pitstop[player-ONE] = app.repeat(PITSTOP_TIME, [](){
+            if(digitalRead(LAPP1) == LOW){
+              refuel(player, p1_fuel, FS1);
+              P1justRefueled = true;
+            } else{
+                debug("Disabling pit stop");
+                app.free(pitstop[player-ONE]);
+                app.free(pitstop_request[player-ONE]);
+              }
+        });
+        app.enable(pitstop[player - ONE]);
+      });
+      app.enable(pitstop_request[player-ONE]);
+    }
+    if (value == LOW)
+      wasEntered = true;
   }));
 
-  rman.add(app.onPinRising(LAPP2, [](){
-      static bool animating = false;
-      static int fuel = 100;
-      animating = handleSensorEntered(2, LAPP2, animating, p2bltime, p2_laps, p2Laps, matrix2_print_reaction, matrix2_print, OS2, BLS2, FS2, fuel);
+  //-----------------------------------------------------------------------------
+
+  rman.add(app.onPinChange(LAPP2, [](){
   }));
 }
 
@@ -304,7 +373,8 @@ void countdown(){
   debug("Countdown");
   const int offset = 1500;
   const int delays[4] = {10, offset+200, 2*offset, 3*offset};
-
+  tela1.clear();
+  tela2.clear();
 
   rman.add(app.delay(delays[0],[](){
       analogWrite(SEMA1[0], 255);
@@ -607,8 +677,6 @@ void app_main() {
   tela2.enableUTF8Print();	
 
   boot();
-
-
 
   // tela1.clear();
   // tela1.drawXBM( 0, 0, test_width, test_height, test_bits);

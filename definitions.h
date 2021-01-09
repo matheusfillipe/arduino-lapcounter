@@ -1,7 +1,8 @@
 /* TODO 
- * pit stop detection
- * refuel
- * failure
+ * bug: simultaneous rpitsopt 2 playres
+ * generate faiure on lap 
+ * random time > minlap
+ * TESTS
 */
 
 // PINS
@@ -18,7 +19,7 @@ const int SEMA2[3] = {48, 46, 44};
 // Constants
 #define MAX_LAPS 255
 #define BITS_LAPS 8
-#define DEFAULT_LAPS "4"
+#define DEFAULT_LAPS "20"
 #define DEFAULT_AUTONOMY 10
 #define DEFAULT_FAILURE 0
 
@@ -33,7 +34,7 @@ const int SEMA2[3] = {48, 46, 44};
 #define MIN_LAP_TIME 900.0
 #define RESET_TIME 3000
 
-#define PITSTOP_TIME 500
+#define PITSTOP_TIME 1000
 #define PITSTOP_REFUEL_AMMOUNT 20
 
 #define FONT_BIG u8g2_font_logisoso18_tf
@@ -46,7 +47,7 @@ const int SEMA2[3] = {48, 46, 44};
 #define MATRIX_ANIMATION_DELAY 300
 
 #define TEST_START 0
-#define LAP_START -2 //-1
+#define LAP_START -1 //-1
 
 #define MAX_SIMUL_REACTIONS 8
 #define ONE 1
@@ -56,9 +57,9 @@ const int SEMA2[3] = {48, 46, 44};
 #define TEXT_FUEL "F"
 #define TEXT_WIN "Win!"
 #define TEXT_LOOSE "Lost!"
-#define TEXT_BESTLAP "BS: "
+#define TEXT_BESTLAP "BL: "
 
-#define TEXT_STARTUP_BURNED "Queimou!"
+#define TEXT_STARTUP_BURNED "False!"
 #define TEXT_STARTUP_READY "Ready?"
 #define TEXT_STARTUP_READY "Ready?"
 
@@ -69,6 +70,9 @@ const int SEMA2[3] = {48, 46, 44};
 #define TEXT_MENU_AUTONOMY "Autonomy: "
 #define TEXT_MENU_FAILURE "Failure: "
 #define TEXT_MENU_NOTUSE "NA"
+
+#define TEXT_RACE_PITSTOP "PIT STOP"
+
 
 // Macros
 #define REACT(func) [](){func;}
