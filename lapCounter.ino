@@ -12,6 +12,7 @@
 #include "react.h"
 #include "assets.h"
 
+
 // Classes
 typedef struct Lap_struct {
   unsigned int player : 1;
@@ -27,25 +28,30 @@ class GameOptions{
     GameOptions(int n_laps, int autonomy, int fails): n_laps(n_laps), autonomy(autonomy), fails(fails){}
 };
 
+struct PlayerState{
+  Lap Laps[MAX_LAPS];
+  unsigned long pbltime;
+  int p_laps;
+  int fuel;
+  bool justRefueled : 1;
+  bool isOnPit;
+  bool isOnPitDelay;
+  reaction pitstop;
+  reaction pitDelay;
+  int fail_lap;
+  int num;
+};
 
-// Variables
-Lap p1Laps[MAX_LAPS];
-Lap p2Laps[MAX_LAPS];
-unsigned long p1bltime;
-unsigned long p2bltime;
-int p1_laps;
-int p2_laps; 
-int p1_fuel;
-int p2_fuel;
-bool P1justRefueled;
-bool P2justRefueled;
 
-char inputBuffer[4];
+// Globals
+PlayerState P1;
+PlayerState P2;
+
 bool gameloop = false;
 bool mute = false;
 
-Cursor tela1_cursor(128, 64, 18, 22, 5);
-Cursor tela2_cursor(128, 64, 18, 22, 5);
+Cursor screen1_cursor(128, 64, 18, 22, 5);
+Cursor screen2_cursor(128, 64, 18, 22, 5);
 Cursor bl1Cursor(128, 64, 60);
 Cursor bl2Cursor(128, 64, 60);
 Cursor f1Cursor(128, 64, 12);
@@ -58,28 +64,29 @@ ReactionManager rman;
 GameOptions options(String(DEFAULT_LAPS).toInt(), DEFAULT_AUTONOMY, DEFAULT_FAILURE);
 
 // Screens
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C tela1(U8G2_R0, /* clock=*/ 14, /* data=*/ 16);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C tela2(U8G2_R0, /* clock=*/ 18, /* data=*/ 17);
-U8G2_MAX7219_8X8_F_4W_SW_SPI matrix1(U8G2_R0, /* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41, /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
-U8G2_MAX7219_8X8_F_4W_SW_SPI matrix2(U8G2_R0, /* clock=*/ 27, /* data=*/ 23, /* cs=*/ 25, /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C screen1(U8G2_R0, /* clock=*/ SCREEN1[0], /* data=*/ SCREEN1[1]);
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C screen2(U8G2_R0, /* clock=*/ SCREEN2[0], /* data=*/ SCREEN2[1]);
+U8G2_MAX7219_8X8_F_4W_SW_SPI matrix1(U8G2_R0, /* clock=*/ MATRIX1[0], /* data=*/ MATRIX1[1], /* cs=*/ MATRIX1[2], /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
+U8G2_MAX7219_8X8_F_4W_SW_SPI matrix2(U8G2_R0, /* clock=*/ MATRIX2[0], /* data=*/ MATRIX2[1], /* cs=*/ MATRIX2[2], /* dc=*/ U8X8_PIN_NONE, /* reset=*/ U8X8_PIN_NONE);
 
 
-// OutputPane
-OutputPane OS1(tela1_cursor,   &tela1,   FONT_BIG);
-OutputPane BLS1(bl1Cursor,    &tela1,   FONT_SMALL);
-OutputPane FS1(f1Cursor,    &tela1,   FONT_SMALL);
+// LabelWidget
+LabelWidget OS1(screen1_cursor,   &screen1,   FONT_BIG);
+LabelWidget BLS1(bl1Cursor,    &screen1,   FONT_SMALL);
+LabelWidget FS1(f1Cursor,    &screen1,   FONT_SMALL);
 
-OutputPane OS2(tela2_cursor,   &tela2,   FONT_BIG);
-OutputPane BLS2(bl2Cursor,   &tela2,   FONT_SMALL);
-OutputPane FS2(f2Cursor,    &tela2,   FONT_SMALL);
+LabelWidget OS2(screen2_cursor,   &screen2,   FONT_BIG);
+LabelWidget BLS2(bl2Cursor,   &screen2,   FONT_SMALL);
+LabelWidget FS2(f2Cursor,    &screen2,   FONT_SMALL);
 
-OutputPane MS1(matrix1_cursor, &matrix1, FONT_MATRIX);
-OutputPane MS2(matrix2_cursor, &matrix2, FONT_MATRIX);
+LabelWidget MS1(matrix1_cursor, &matrix1, FONT_MATRIX);
+LabelWidget MS2(matrix2_cursor, &matrix2, FONT_MATRIX);
 
 // Games
 #include "utils.h"
 
 void countdown();
+void freePitStop(PlayerState &P, bool force = false);
 void game();
 void race();
 void startup();
@@ -87,7 +94,7 @@ void menu_input();
 
 // Sounds
 void negativeSound(){
-  app.delay(10, REACT(tone(NOTE_C4, 200)));
+  tone(NOTE_C4, 200);
   app.delay(400, REACT(tone(NOTE_C4, 600)));
 }
 
@@ -110,54 +117,58 @@ void alertSound(){
 
 
 // Race
+const int winXOffset = 80;
 void printWin(int n){
-    serialSend("--WIN--");
-    serialSend("Player" + String(n) + " won");
     if(n==1){
       print(TEXT_WIN, OS1);
-      write(TEXT_BESTLAP+timestamp(p1bltime), BLS1);
-      BLS1.cursor.x+=80;
-      write(timestamp(p1Laps[p1_laps-1].lap_time), BLS1);
-      BLS1.cursor.x-=80;
+      write(TEXT_BESTLAP+timestamp(P1.pbltime), BLS1);
+      BLS1.cursor.x+=winXOffset;
+      write(timestamp(P1.Laps[P1.p_laps-1].lap_time), BLS1);
+      BLS1.cursor.x-=winXOffset;
 
       print(TEXT_LOOSE, OS2);
-      write(TEXT_BESTLAP+timestamp(p2bltime), BLS2);
-      BLS2.cursor.x+=80;
-      write(timestamp(p2Laps[p2_laps-1].lap_time), BLS2);
-      BLS2.cursor.x-=80;
+      write(TEXT_BESTLAP+timestamp(P2.pbltime), BLS2);
+      BLS2.cursor.x+=winXOffset;
+      write(timestamp(P2.Laps[P2.p_laps-1].lap_time), BLS2);
+      BLS2.cursor.x-=winXOffset;
     }
     else if(n==2){
       print(TEXT_WIN, OS2);
-      write(TEXT_BESTLAP+timestamp(p2bltime), BLS2);
-      BLS2.cursor.x+=80;
-      write(timestamp(p2Laps[p2_laps-1].lap_time), BLS2);
-      BLS2.cursor.x-=80;
+      write(TEXT_BESTLAP+timestamp(P2.pbltime), BLS2);
+      BLS2.cursor.x+=winXOffset;
+      write(timestamp(P2.Laps[P2.p_laps-1].lap_time), BLS2);
+      BLS2.cursor.x-=winXOffset;
 
       print(TEXT_LOOSE, OS1);
-      write(TEXT_BESTLAP+timestamp(p1bltime), BLS1);
-      BLS1.cursor.x+=80;
-      write(timestamp(p1Laps[p1_laps-1].lap_time), BLS1);
-      BLS1.cursor.x-=80;
+      write(TEXT_BESTLAP+timestamp(P1.pbltime), BLS1);
+      BLS1.cursor.x+=winXOffset;
+      write(timestamp(P1.Laps[P1.p_laps-1].lap_time), BLS1);
+      BLS1.cursor.x-=winXOffset;
     }
 }
 
 void serialTranferLaps(){
-    serialSend("--PLAYER 1--");
-    for(int i = 0; i < p1_laps; i++){
-      serialSend(String(i+1)+": "+String(p1Laps[i].lap_time));
+    log("-----------------------------------------------");
+    log("PLAYER 1");
+    for(int i = 0; i < P1.p_laps; i++){
+      serialSend("LAPTIME", 1, P1.Laps[i].lap_time, i+1);
     }
-    serialSend("--PLAYER 2--");
-    for(int i = 0; i < p2_laps; i++){
-      serialSend(String(i+1)+": "+String(p2Laps[i].lap_time));
+    log("-----------------------------------------------");
+    log("PLAYER 2");
+    for(int i = 0; i < P2.p_laps; i++){
+      serialSend("LAPTIME", 2, P2.Laps[i].lap_time, i+1);
     }
-    serialSend("----");
+    log("-----------------------------------------------");
 }
 
 void win(int n){
   rman.free();
+  serialSend("WIN", n);
+  tone(NOTE_A5, 1500);
+  freePitStop(P1);
+  freePitStop(P2);
   matrix1.clear();
   matrix2.clear();
-  tone(NOTE_A5, 1500);
   victorySound();
   printWin(n);
   serialTranferLaps();
@@ -166,9 +177,9 @@ void win(int n){
     rman.add(app.repeat(500, [](){
         static bool wonState = true;
         if (wonState)
-          ASemOn(SEMA1);
+          ASemOn(SEMA[0]);
         else
-          ASemOff(SEMA1);
+          ASemOff(SEMA[0]);
         wonState = !wonState;
     }));
   }
@@ -176,9 +187,9 @@ void win(int n){
     rman.add(app.repeat(500, [](){
         static bool wonState = true;
         if (wonState)
-          ASemOn(SEMA2);
+          ASemOn(SEMA[1]);
         else
-          ASemOff(SEMA2);
+          ASemOff(SEMA[1]);
         wonState = !wonState;
     }));
   }
@@ -190,161 +201,213 @@ void win(int n){
 
 unsigned long start;
 
-void writeFuel(int fuel, OutputPane FS){
+void writeFuel(int fuel, LabelWidget FS){
     if (options.autonomy == 0)
       return;
-    FS.tela->setFont(FS.font);
-    FS.tela->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
-    FS.tela->drawBox(15, 5, fuel*(128-45)/100, 5);
-    FS.tela->drawLine(15, 8, 15+fuel*(128-45)/100, 8);
-    FS.tela->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/options.autonomy)).c_str());	
+    FS.screen->setFont(FS.font);
+    FS.screen->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
+    FS.screen->drawBox(15, 5, fuel*(128-45)/100, 5);
+    FS.screen->drawLine(15, 8, 15+fuel*(128-45)/100, 8);
+    FS.screen->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/options.autonomy)).c_str());	
 }
 
-void printLap(unsigned long dt, OutputPane &OS, unsigned long pbltime, OutputPane &LS, int fuel, OutputPane &FS){
-    FS.tela->clear();
+void printLap(unsigned long dt, LabelWidget &OS, unsigned long pbltime, LabelWidget &LS, int fuel, LabelWidget &FS){
+    FS.screen->clear();
     writeFuel(fuel, FS);
-    OS.tela->setFont(OS.font);
-    OS.tela->drawStr(OS.cursor.x, OS.cursor.y,   timestamp(dt).c_str()); 
-    FS.tela->setFont(LS.font);
-    LS.tela->drawStr(LS.cursor.x, LS.cursor.y, (TEXT_BESTLAP+timestamp(pbltime)).c_str());
-    FS.tela->sendBuffer();
+    OS.screen->setFont(OS.font);
+    OS.screen->drawStr(OS.cursor.x, OS.cursor.y,   timestamp(dt).c_str()); 
+    FS.screen->setFont(LS.font);
+    LS.screen->drawStr(LS.cursor.x, LS.cursor.y, (TEXT_BESTLAP+timestamp(pbltime)).c_str());
+    FS.screen->sendBuffer();
 }
 
-bool addLap(int player, bool animating, unsigned long &pbltime, int &p_laps, Lap pLaps[], reaction &matrix_print_reaction, bool  (*matrix_print)(int), OutputPane &OS, OutputPane &BLS, OutputPane &FS, int &fuel, bool justRefueled){
+void addFailure( PlayerState &P, LabelWidget &OS ){
+  OS.screen->clear();
+  negativeSound();
+  OS.screen->drawXBMP(0, 0, car_width, car_height, car_bits);
+  OS.screen->sendBuffer();
+  ASemOff(SEMA[P.num-ONE]);
+  analogWrite(SEMA[P.num-ONE][0], 255);
+  P.fuel = 0;
+}
+
+void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bool  (*matrix_print)(int), LabelWidget &OS, LabelWidget &BLS, LabelWidget &FS){
   // Ignore first pass
-    if(p_laps < 0) {
-      p_laps++;
+    if(P.p_laps < 0) {
+      P.p_laps++;
       OS.clear();
-      fuel=100;
-      return animating;
+      P.fuel=100;
+      return;
     }
 
     // Count total time
     unsigned long total_time = 0;
-    for(int i = 0; i < p_laps; i++){
-      total_time += pLaps[i].lap_time;
+    for(int i = 0; i < P.p_laps; i++){
+      total_time += P.Laps[i].lap_time;
     }
 
     // Determine lap time
     unsigned long dt = (millis() - start) - total_time; 
     if(dt < MIN_LAP_TIME){  
       debug("Ignoring"); 
-      return animating; 
+      return; 
     } 
 
     // Fuel decrement
-    if (!justRefueled && options.autonomy != 0){
-      fuel -= 100/options.autonomy;
-      if (fuel <= 0){
-        fuel = 0;
+    if (!P.justRefueled && options.autonomy != 0){
+      if (P.fuel <= 0){
+        P.fuel = 0;
         negativeSound();
-        OS.tela->clear();
-        OS.tela->drawXBMP(40, 14, fuel_width, fuel_height, fuel_bits);
-        // OS.tela->drawXBMP(0, 0, car_width, car_height, car_bits);
-        OS.tela->sendBuffer();
+        ASemOff(SEMA[P.num-ONE]);
+        analogWrite(SEMA[P.num-ONE][0], 255);
+        OS.screen->clear();
+        if(options.fails && P.p_laps == P.fail_lap)
+          OS.screen->drawXBMP(0, 0, car_width, car_height, car_bits);
+        else
+          OS.screen->drawXBMP(40, 14, fuel_width, fuel_height, fuel_bits);
+        OS.screen->sendBuffer();
         return;
       }
+      P.fuel -= 100/options.autonomy;
     }
 
     // Store lap time
-    pLaps[p_laps].lap_time = dt;
+    P.Laps[P.p_laps].lap_time = dt;
 
-    if(p_laps >= options.n_laps - 1){
-      win(player);
-      return animating;
+    if(P.p_laps >= options.n_laps - 1){
+      P.p_laps++;
+      win(P.num);
+      return;
     }
 
-    // Lap count sound
-    if (fuel <= 0)
-      negativeSound();
-    else if(fuel - 100/options.autonomy <= 0)
+    // Low fuel alert
+    if(P.fuel <= 0){ 
       tone(NOTE_E5, 500);
-    else
+      analogWrite(SEMA[P.num-ONE][1], 255);
+      if(options.n_laps && P.p_laps+1 == P.fail_lap)
+        P.fail_lap = random(P.p_laps+1, options.n_laps-1);
+    }else
       tone(NOTE_E4, 150);
 
-    // Draw stuff
-    pbltime = pbltime > dt || pbltime == 0 ? dt : pbltime;
-    animating = matrix_print(++p_laps);
-    printLap(dt, OS, pbltime, BLS, fuel, FS);
+    // Increment lap and Draw stuff
+    P.pbltime = P.pbltime > dt || P.pbltime == 0 ? dt : P.pbltime;
+    animating = matrix_print(++P.p_laps);
+    printLap(dt, OS, P.pbltime, BLS, P.fuel, FS);
+    serialSend("LAPS", P.num, P.p_laps);
+    serialSend("FUEL", P.num, P.fuel);
     if(animating)
       app.free(matrix_print_reaction);
 
-    return animating;
+    // Check random failure for next lap 
+    if(options.fails && P.p_laps == P.fail_lap){
+      if(P.num == 1)
+        app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
+            addFailure(P1, OS1);
+        });
+      if(P.num == 2)
+        app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
+            addFailure(P2, OS2);
+        });
+    }
+}
+
+void refuel(PlayerState &P, LabelWidget &FS){
+  P.fuel += PITSTOP_REFUEL_AMMOUNT;
+  P.fuel = P.fuel <= 100 ? P.fuel : 100;
+  serialSend("FUEL", P.num, P.fuel);
+  writeFuel(P.fuel, FS);
+  FS.screen->updateDisplayArea(0, 0, 16, 3);
+  P.justRefueled = true;
+  if(P.fuel >= 100) {
+      if(P.p_laps >= P.fail_lap)
+        P.fail_lap = MAX_LAPS + ONE; // Disable failure
+      tone(NOTE_E5, 1000);
+      ASemOff(SEMA[P.num-ONE]);
+      analogWrite(SEMA[P.num-ONE][2], 255);
+      app.disable(P.pitstop);
+  }
 }
 
 void resetPlayers(){
-  p1_laps = LAP_START;
-  p2_laps = LAP_START;
-  p1bltime = 0;
-  p2bltime = 0;
-  p1_fuel = 100;
-  p2_fuel = 100;
-  P1justRefueled = false;
-  P2justRefueled = false;
+  P1.num = 1;
+  P2.num = 2;
+  P1.p_laps = LAP_START;
+  P2.p_laps = LAP_START;
+  P1.pbltime = 0;
+  P2.pbltime = 0;
+  P1.fuel = 100;
+  P2.fuel = 100;
+  P1.justRefueled = false;
+  P2.justRefueled = false;
+  P1.isOnPit = false;
+  P2.isOnPit = false;
 }
 
-reaction pitstop[2];
-reaction pitstop_request[2];
-void refuel(int player, int &p_fuel, OutputPane &FS){
-  p_fuel += PITSTOP_REFUEL_AMMOUNT;
-  p1_fuel = p_fuel <= 100 ? p_fuel : 100;
-  DEB(p1_fuel);
-  writeFuel(p_fuel, FS);
-  FS.tela->updateDisplayArea(0, 0, 16, 3);
-  if(p_fuel >= 100) {
-      tone(NOTE_E5, 1000);
-      app.disable(pitstop[player - 1]);
+void freePitStop(PlayerState &P, bool force = false){
+  if(P.isOnPit || force){ 
+    debug("Freeing pit stop");
+    P.isOnPit = false;
+    app.free(P.pitstop);
+  } 
+  if(P.isOnPitDelay || force){
+    debug("Freeing pit stop delay");
+    P.isOnPitDelay = false;
+    app.free(P.pitDelay);
   }
 }
 
 reaction qdr1, qdr2;
 void race(){
-  debug("Race");
+  serialSend("RACE");
   resetPlayers();
 
   start = millis();
   rman.add(bindKey('D', game));
 
+  // TODO: Move all this to a handleSensorInput function refactor
   rman.add(app.onPinChange(LAPP1, [](){
-    static const int player = 1;
     static bool animating = false;
     static bool wasEntered = false;
+    static bool pitStopLaunched = false;
     int value = digitalRead(LAPP1);
     debug(String(value));
 
-    app.free(pitstop[player-1]);
-    app.free(pitstop_request[player-ONE]);
-
-    if(wasEntered && value == HIGH){ // Leave sensor
-      animating = addLap(player, animating, p1bltime, p1_laps, p1Laps, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1, p1_fuel, P1justRefueled);
+    if(wasEntered && value == HIGH){ // On sensor leave
+      freePitStop(P1);
+      addLap(P1, animating, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1);
       wasEntered = false;
-      P1justRefueled = false;
-    }else if ( options.autonomy > 0 && p1_laps >= 0 ){ // PITSTOP?
-      pitstop_request[player-ONE] = app.delay(2*PITSTOP_TIME, [](){
+      P1.justRefueled = false;
+      pitStopLaunched = false;
+    }else if (options.autonomy > 0 && !pitStopLaunched && P1.p_laps >= 0 && !P1.isOnPit && !P1.isOnPitDelay){ // On sensor enter
+      pitStopLaunched = true;
+      debug("Pit stop Check");
+      freePitStop(P1);
+      P1.pitDelay = app.delay(2*PITSTOP_TIME, [](){
+        P1.isOnPitDelay = true;
         if(digitalRead(LAPP1) == HIGH){
-          app.free(pitstop[player-ONE]);
-          app.free(pitstop_request[player-ONE]);
+          freePitStop(P1);
           return;
         }
-        debug("Pit Stop");
-        OS1.tela->clear();
+        debug("Pit stop delay");
+        OS1.screen->clear();
         OS1.cursor.x = 5;
         iwrite(TEXT_RACE_PITSTOP, OS1);
-        OS1.cursor.x = 30;
-        OS1.tela->updateDisplayArea(0, 2, 16, 4);
-        pitstop[player-ONE] = app.repeat(PITSTOP_TIME, [](){
+        OS1.cursor.x = TEXT_X_OFFSET;
+        OS1.screen->updateDisplayArea(0, 2, 16, 4);
+        P1.pitstop = app.repeat(PITSTOP_TIME, [](){
+            if(!P1.isOnPit){
+              alertSound();
+              ASemOff(SEMA[P1.num-ONE]);
+              analogWrite(SEMA[P1.num-ONE][ONE], 255);
+            }
+            P1.isOnPit = true;
             if(digitalRead(LAPP1) == LOW){
-              refuel(player, p1_fuel, FS1);
-              P1justRefueled = true;
+              refuel(P1, FS1);
             } else{
-                debug("Disabling pit stop");
-                app.free(pitstop[player-ONE]);
-                app.free(pitstop_request[player-ONE]);
-              }
+              freePitStop(P1);
+            }
         });
-        app.enable(pitstop[player - ONE]);
       });
-      app.enable(pitstop_request[player-ONE]);
     }
     if (value == LOW)
       wasEntered = true;
@@ -353,9 +416,63 @@ void race(){
   //-----------------------------------------------------------------------------
 
   rman.add(app.onPinChange(LAPP2, [](){
+    static bool animating = false;
+    static bool wasEntered = false;
+    static bool pitStopLaunched = false;
+    int value = digitalRead(LAPP2);
+    debug(String(value));
+
+    if(wasEntered && value == HIGH){ // On sensor leave
+      freePitStop(P2);
+      addLap(P2, animating, matrix2_print_reaction, matrix2_print, OS2, BLS2, FS2);
+      wasEntered = false;
+      P2.justRefueled = false;
+      pitStopLaunched = false;
+    }
+    else if (options.autonomy > 0 && !pitStopLaunched && P2.p_laps >= 0 && !P2.isOnPit && !P2.isOnPitDelay){ // On sensor enter
+      pitStopLaunched = true;
+      debug("Pit stop Check");
+      freePitStop(P2);
+      P2.pitDelay = app.delay(2*PITSTOP_TIME, [](){
+        P2.isOnPitDelay = true;
+        if(digitalRead(LAPP2) == HIGH){
+          freePitStop(P2);
+          return;
+        }
+        debug("Pit stop delay");
+        OS2.screen->clear();
+        OS2.cursor.x = 5;
+        iwrite(TEXT_RACE_PITSTOP, OS2);
+        OS2.cursor.x = TEXT_X_OFFSET;
+        OS2.screen->updateDisplayArea(0, 2, 26, 4);
+        P2.pitstop = app.repeat(PITSTOP_TIME, [](){
+            if(!P2.isOnPit){
+              alertSound();
+              ASemOff(SEMA[P2.num-ONE]);
+              analogWrite(SEMA[P2.num-ONE][ONE], 255);
+            }
+            P2.isOnPit = true;
+            if(digitalRead(LAPP2) == LOW){
+              refuel(P2, FS2);
+            } else{
+              freePitStop(P2);
+            }
+        });
+      });
+    }
+    if (value == LOW)
+      wasEntered = true;
   }));
 }
 
+void generateFailures(){
+  debug("Player 1 failures");
+  generateRandomNumbers(P1.fail_lap, options.fails, options.n_laps);
+  debug(P1.fail_lap);
+  debug("Player 2 failures");
+  generateRandomNumbers(P2.fail_lap, options.fails, options.n_laps);
+  debug(P2.fail_lap);
+}
 
 void restart_countdown(){
   app.free(qdr1);
@@ -371,30 +488,31 @@ void restart_countdown(){
 
 void countdown(){
   debug("Countdown");
+  generateFailures();
   const int offset = 1500;
   const int delays[4] = {10, offset+200, 2*offset, 3*offset};
-  tela1.clear();
-  tela2.clear();
+  screen1.clear();
+  screen2.clear();
 
   rman.add(app.delay(delays[0],[](){
-      analogWrite(SEMA1[0], 255);
-      analogWrite(SEMA2[0], 255);
+      analogWrite(SEMA[0][0], 255);
+      analogWrite(SEMA[1][0], 255);
       tone(NOTE_E4, 400);
       matrixMirrowedDrawBox(0, 5, 8, 8);
       mirrowedPrint("3");
   }));
 
   rman.add(app.delay(delays[1],[](){
-      analogWrite(SEMA1[1], 255);
-      analogWrite(SEMA2[1], 255);
+      analogWrite(SEMA[0][1], 255);
+      analogWrite(SEMA[1][1], 255);
       tone(NOTE_E4, 400);
       matrixMirrowedDrawBox(0, 3, 8, 8);
       mirrowedPrint("2");
   }));
 
   rman.add(app.delay(delays[2],[](){
-      analogWrite(SEMA1[2], 255);
-      analogWrite(SEMA2[2], 255);
+      analogWrite(SEMA[0][2], 255);
+      analogWrite(SEMA[1][2], 255);
       tone(NOTE_E4, 400);
       matrixMirrowedDrawBox(0, 0, 8, 8);
       mirrowedPrint("1");
@@ -405,8 +523,8 @@ void countdown(){
       app.free(qdr2);
       matrix1.clear();
       matrix2.clear();
-      U2SemOff(SEMA1);
-      U2SemOff(SEMA2);
+      U2SemOff(SEMA[0]);
+      U2SemOff(SEMA[1]);
       tone(NOTE_E5, 1000);
       mirrowedPrint("Go!");
       matrixMirrowedPrint("0");
@@ -416,39 +534,39 @@ void countdown(){
 
 void startup(){
     rman.free();
-    ASemOff(SEMA1);
-    ASemOff(SEMA2);
-    print(TEXT_STARTUP_READY, &tela1, tela1_cursor, FONT_BIG);
-    print(TEXT_STARTUP_READY, &tela2, tela2_cursor, FONT_BIG);
+    ASemOff(SEMA[0]);
+    ASemOff(SEMA[1]);
+    print(TEXT_STARTUP_READY, &screen1, screen1_cursor, FONT_BIG);
+    print(TEXT_STARTUP_READY, &screen2, screen2_cursor, FONT_BIG);
     rman.add(app.delay(1000, REACT(countdown())));
 
     // Setup sensors
     qdr1 = app.onPinFalling(LAPP1, [](){
-      tela1_cursor.x=30;
-      tela1_cursor.y=40;
-      print(TEXT_STARTUP_BURNED, &tela1, tela1_cursor, FONT_BIG);
-      print("", &tela2, tela2_cursor, FONT_BIG);
-      ASemOff(SEMA1);
-      ASemOff(SEMA2);
+      screen1_cursor.x=TEXT_X_OFFSET;
+      screen1_cursor.y=40;
+      print(TEXT_STARTUP_BURNED, &screen1, screen1_cursor, FONT_BIG);
+      print("", &screen2, screen2_cursor, FONT_BIG);
+      ASemOff(SEMA[0]);
+      ASemOff(SEMA[1]);
       restart_countdown();
       rman.add(app.repeat(BLINK_TIME_SLOW, [](){
             static bool state = true;
-            analogWrite(SEMA1[0], 255*state);
+            analogWrite(SEMA[0][0], 255*state);
             state = !state;
       }));
     });
 
     qdr2 = app.onPinFalling(LAPP2, [](){
-      tela2_cursor.x=30;
-      tela2_cursor.y=40;
-      print(TEXT_STARTUP_BURNED, &tela2, tela2_cursor, FONT_BIG);
-      print("", &tela1, tela1_cursor, FONT_BIG);
-      ASemOff(SEMA1);
-      ASemOff(SEMA2);
+      screen2_cursor.x=TEXT_X_OFFSET;
+      screen2_cursor.y=40;
+      print(TEXT_STARTUP_BURNED, &screen2, screen2_cursor, FONT_BIG);
+      print("", &screen1, screen1_cursor, FONT_BIG);
+      ASemOff(SEMA[0]);
+      ASemOff(SEMA[1]);
       restart_countdown();
       rman.add(app.repeat(BLINK_TIME_SLOW, [](){
             static bool state = true;
-            analogWrite(SEMA2[0], 255*state);
+            analogWrite(SEMA[1][0], 255*state);
             state = !state;
       }));
     }); 
@@ -465,13 +583,13 @@ void startup(){
 
 // Menu
 void printMenu(String msg, String num){
-  FS1.tela->clear();
+  FS1.screen->clear();
   iwrite(TEXT_MENU_HEADER, FS1);
   OS1.cursor.y+=10;
   OS1.cursor.x=0;
   iwrite(msg, OS1);
   OS1.cursor.y-=10;
-  OS1.tela->sendBuffer();
+  OS1.screen->sendBuffer();
   print(num, OS2);
   write(String(TEXT_MENU_CONFIRM) + ( mute ? " M" : "" ), FS2);
 }
@@ -493,9 +611,9 @@ void handleNumberInput(char key, String &last, int digits, int min_, int max_){
 }
 
 void printMenuValue(String last){
-  FS1.tela->clearBuffer();
-  iwrite(last, &tela2, tela2_cursor, FONT_BIG);
-  tela2.updateDisplayArea(0, 2, 8, 6);
+  FS1.screen->clearBuffer();
+  iwrite(last, &screen2, screen2_cursor, FONT_BIG);
+  screen2.updateDisplayArea(0, 2, 8, 6);
 }
 
 void menu_input(){
@@ -508,9 +626,9 @@ void menu_input(){
     case '*': 
       mute = !mute;
       log("Muting");
-      FS1.tela->clearBuffer();
+      FS1.screen->clearBuffer();
       iwrite(String(TEXT_MENU_CONFIRM) + ( mute ? " M" : "" ), FS2);
-      tela2.updateDisplayArea(0, 0, 16, 2);
+      screen2.updateDisplayArea(0, 0, 16, 2);
       break;
     case 'A': 
       printMenu(TEXT_MENU_LAPS, laps);
@@ -521,33 +639,33 @@ void menu_input(){
       menu_opt = 1;
       break;
     case 'C': 
-      printMenu(TEXT_MENU_FAILURE, fails.toInt() == 0 ? TEXT_MENU_NOTUSE : fails );
+      printMenu(TEXT_MENU_FAILURE, fails.toInt() == 0 ? TEXT_MENU_NOTUSE : TEXT_MENU_USE);
       menu_opt = 2;
       break;
     case 'D': 
       if(laps.toInt()>0)
         options.n_laps = laps.toInt();
-      log("Set "+String(options.n_laps)+" laps.");
+      serialSend("SET", "laps", String(options.n_laps));
       if(autonomy.toInt()>=0)
         options.autonomy = autonomy.toInt();
-      log("Set "+String(options.autonomy)+" autonomy.");
+      serialSend("SET", "autonomy", String(options.autonomy));
       if(fails.toInt()>=0)
         options.fails = fails.toInt();
-      log("Set "+String(options.fails)+" fails.");
+      serialSend("SET", "fails", String(options.fails));
       startup();
       break;
   }
   if(key != '-' && key != ' ' && key && isdigit(key)){
     switch (menu_opt){
-      case 0:
+      case 0: // Laps
         laps = touched[0] ? laps : "";
         handleNumberInput(key, laps, 3, 1, MAX_LAPS);
         printMenuValue(laps);
         touched[0] = 1;
         break;
-      case 1:
+      case 1: // Autonomy
         autonomy = touched[1] ? autonomy : "";
-        handleNumberInput(key, autonomy, 3, 0, MAX_LAPS);
+        handleNumberInput(key, autonomy, laps.length(), 0, laps.toInt());
         if(autonomy.toInt() == 0){
           printMenuValue(TEXT_MENU_NOTUSE);
           touched[1] = 0;
@@ -557,16 +675,14 @@ void menu_input(){
           touched[1] = 1;
         }
         break;
-      case 2:
+      case 2: // Failures
         fails = touched[2] ? fails : "";
-        handleNumberInput(key, fails, 3, 0, MAX_LAPS);
+        handleNumberInput(key, fails, 1, 0, min(laps.toInt(), MAX_FAILURES));
         if(fails.toInt() == 0){ 
           printMenuValue(TEXT_MENU_NOTUSE);
-          touched[2] = 0;
         }
         else{ 
-          printMenuValue(fails);
-          touched[2] = 1;
+          printMenuValue(TEXT_MENU_USE);
         }
         break;
     }
@@ -575,11 +691,14 @@ void menu_input(){
 
 void game(){
   rman.free();
+  serialSend("MENU");
   touched[0] = 0;
   touched[1] = 0;
   touched[2] = 0;
-  ASemOff(SEMA2);
-  ASemOff(SEMA1);
+  OS1.cursor.x=TEXT_X_OFFSET;
+  OS2.cursor.x=TEXT_X_OFFSET;
+  ASemOff(SEMA[1]);
+  ASemOff(SEMA[0]);
   printMenu(TEXT_MENU_LAPS, String(options.n_laps));
   matrixMirrowedPrint("");
   debug("Menu");
@@ -594,9 +713,9 @@ void test_process_input(){
   if(key != '-' && key != ' ' && key){
     app.free(t2r);
     last += String(key);
-    tela2_cursor.x=0;
-    tela2_cursor.y=30;
-    print(last, &tela2, tela2_cursor, FONT_SMALL);
+    screen2_cursor.x=0;
+    screen2_cursor.y=30;
+    print(last, &screen2, screen2_cursor, FONT_SMALL);
   }
 }
 
@@ -608,13 +727,13 @@ void testMode(){
   app.repeat(KEYBOARD_DELAY, REACT(test_process_input()));
   app.repeat(500, [](){
       static int count = 0;
-      tela1_cursor.x=0;
+      screen1_cursor.x=0;
       print("test1 "+String(count), OS1);
       count++;
   });
   t2r=app.repeat(500, [](){
       static int count = 0;
-      tela2_cursor.x=0;
+      screen2_cursor.x=0;
       print("test2 "+String(count), OS2);
       count++;
   });
@@ -630,6 +749,15 @@ void testMode(){
 
 reaction br, tr;
 void boot(){
+
+  // Logo
+  screen1.clear();
+  screen1.drawXBMP( 0, 6, logo_car1_width, logo_car1_height, logo_car1_bits);
+  screen1.sendBuffer();
+  screen2.clear();
+  screen2.drawXBMP( 0, 6, logo_car2_width, logo_car2_height, logo_car2_bits);
+  screen2.sendBuffer();
+
   br = app.delay(TEST_DELAY, [](){
     //start game
     log("STARTED!!");
@@ -668,19 +796,14 @@ void boot(){
 void app_main() {
   Serial.begin(9600);
   keypad.setHoldTime(RESET_TIME);
-  randomSeed(analogRead(0));
+  randomSeed(analogRead(10));
   matrix1.begin();
   matrix2.begin();
-  tela1.begin();
-  tela1.enableUTF8Print();	
-  tela2.begin();
-  tela2.enableUTF8Print();	
-
+  screen1.begin();
+  screen1.enableUTF8Print();	
+  screen2.begin();
+  screen2.enableUTF8Print();	
   boot();
-
-  // tela1.clear();
-  // tela1.drawXBM( 0, 0, test_width, test_height, test_bits);
-  // tela1.sendBuffer();
 }
 
 Reactduino app(app_main);

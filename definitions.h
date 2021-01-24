@@ -1,41 +1,50 @@
 /* TODO 
+ * bug: Silmultaneous lap count not possible
  * bug: simultaneous rpitsopt 2 playres
- * generate faiure on lap 
- * random time > minlap
  * TESTS
 */
+
+#define DEBUG false
 
 // PINS
 #define LAPP1 2
 #define LAPP2 3
 #define P1LED 12
 #define P2LED 11
-#define BUZZER2 9
 #define BUZZER 8
-const int SEMA1[3] = {45, 47, 49};
-const int SEMA2[3] = {48, 46, 44};
+#define BUZZER2 9
+const uint16_t SEMA[][3] = {{45, 47, 49}, // Player 1
+                            {48, 46, 44}         // 2 
+                          };
+const uint16_t SCREEN1[] = {/* clock=*/ 14, /* data=*/ 16};
+const uint16_t SCREEN2[] = {/* clock=*/ 18, /* data=*/ 17};
+const uint16_t MATRIX1[] = {/* clock=*/ 27, /* data=*/ 23, /* cs=*/ 25};
+const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 
 
 // Constants
 #define MAX_LAPS 255
+#define MAX_FAILURES 3
 #define BITS_LAPS 8
-#define DEFAULT_LAPS "20"
-#define DEFAULT_AUTONOMY 10
+#define DEFAULT_LAPS 20
+#define DEFAULT_AUTONOMY 0
 #define DEFAULT_FAILURE 0
 
-#define DEBUG true
 #define BLINK_TIME 100
 #define BLINK_TIME_SLOW 100
 #define N_PINS 24
 #define DEFAULT_BLINK_DURATION 2000
 #define KEYBOARD_DELAY 20
 #define KEYBOARD_RESET_DELAY 1500
-#define TEST_DELAY 500
+#define TEST_DELAY 1500
 #define MIN_LAP_TIME 900.0
 #define RESET_TIME 3000
 
 #define PITSTOP_TIME 1000
-#define PITSTOP_REFUEL_AMMOUNT 20
+#define PITSTOP_REFUEL_AMMOUNT 15
+
+#define FAILURE_MAX_DELAY 1100
+#define FAILURE_MIN_DELAY 400
 
 #define FONT_BIG u8g2_font_logisoso18_tf
 #define FONT_MATRIX u8g2_font_trixel_square_tn
@@ -53,7 +62,9 @@ const int SEMA2[3] = {48, 46, 44};
 #define ONE 1
 #define _THOUSAND 1000
 
-// TEXT
+// TEXT & TRANSLATIONS
+#define T_PORTUGUESE 1
+
 #define TEXT_FUEL "F"
 #define TEXT_WIN "Win!"
 #define TEXT_LOOSE "Lost!"
@@ -61,18 +72,40 @@ const int SEMA2[3] = {48, 46, 44};
 
 #define TEXT_STARTUP_BURNED "False!"
 #define TEXT_STARTUP_READY "Ready?"
-#define TEXT_STARTUP_READY "Ready?"
 
 #define TEXT_MENU_LAPS "Laps: "
 #define TEXT_MENU_HEADER "A)LAP B)PIT C)FAIL"
-#define TEXT_MENU_CONFIRM "D)START *)MUTE"
+#define TEXT_MENU_CONFIRM "D)START  *)MUTE"
 #define TEXT_MENU_PITSTOP "Pit Stop"
 #define TEXT_MENU_AUTONOMY "Autonomy: "
 #define TEXT_MENU_FAILURE "Failure: "
-#define TEXT_MENU_NOTUSE "NA"
+#define TEXT_MENU_NOTUSE "OFF"
+#define TEXT_MENU_USE "ON"
 
 #define TEXT_RACE_PITSTOP "PIT STOP"
 
+#define TEXT_X_OFFSET 30
+
+#ifdef T_PORTUGUESE
+#define TEXT_FUEL "F"
+#define TEXT_WIN "Vencedor!"
+#define TEXT_LOOSE "Perdedor!"
+#define TEXT_BESTLAP "MV: "
+
+#define TEXT_STARTUP_BURNED "Queimou!"
+#define TEXT_STARTUP_READY "Preparar!"
+
+#define TEXT_MENU_LAPS "Voltas: "
+#define TEXT_MENU_HEADER "A)LAP B)PIT C)FAIL"
+#define TEXT_MENU_CONFIRM "D)START  *)MUTE"
+#define TEXT_MENU_PITSTOP "Pit Stop"
+#define TEXT_MENU_AUTONOMY "Autonomia: "
+#define TEXT_MENU_FAILURE "Falhas: "
+
+#define TEXT_RACE_PITSTOP "PIT STOP"
+
+#define TEXT_X_OFFSET 20
+#endif
 
 // Macros
 #define REACT(func) [](){func;}
@@ -99,17 +132,42 @@ byte colPins[cols] = {30, 32, 34, 36}; //connect to the column pinouts of the ke
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, rows, cols );
 
 
-void debug(String msg) {
+template<typename T>
+void debug(T msg) {
   if (DEBUG) {
-    Serial.println(String("DEBUG: ") + msg);
+    Serial.println(String("DEBUG: ") + String(msg));
   }
 }
 
-void log(String msg){
-  Serial.println("--> " + msg);
+template<typename T>
+void log(T msg){
+  Serial.println("--> " + String(msg));
 }
 
-void serialSend(String msg){
-  Serial.println(msg);
+template<typename T>
+void serialSend(T msg){
+  Serial.println("--" + String(msg));
+}
+
+template<typename T>
+void serialSend(String name, T msg){
+  Serial.println("--" + name + " " + String(msg));
+}
+
+template<typename T, typename T2>
+void serialSend(String name, T n, T2 msg){
+  Serial.println("--" + name + " " + String(n) + " "+ String(msg));
+}
+
+template<typename T, typename T2, typename T3>
+void serialSend(String name, T n, T2 msg, T3 n3){
+  Serial.println("--" + name + " " + String(n) + " "+ String(msg) + " " + String(n3));
+}
+
+template<typename T>
+void loopDebug(T *things, uint8_t size){
+  for(int i=0; i < size; i++){
+    debug(things[i]);
+  }
 }
 

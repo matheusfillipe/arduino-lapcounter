@@ -9,41 +9,44 @@ const char* str2char(String str){
   return char_array;
 }
 
-void iwrite(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
+void iwrite(String msg, U8G2 *screen, Cursor &cursor = screen1_cursor, const uint8_t *font = FONT_SMALL){
   int str_len = msg.length() + 1; 
-  u8g2_uint_t char_width = tela->getMaxCharWidth();
-  tela->setFont(font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
+  u8g2_uint_t char_width = screen->getMaxCharWidth();
+  screen->setFont(font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
   char char_array[str_len];
   msg.toCharArray(char_array, str_len);
-  tela->drawStr(cursor.x, cursor.y, char_array);	// write something to the internal memory
+  screen->drawStr(cursor.x, cursor.y, char_array);	// write something to the internal memory
 }
 
-void write(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL){
-  iwrite(msg, tela, cursor, font);
-  tela->sendBuffer();					// transfer internal memory to the display
+void write(String msg, U8G2 *screen, Cursor &cursor = screen1_cursor, const uint8_t *font = FONT_SMALL){
+  iwrite(msg, screen, cursor, font);
+  screen->sendBuffer();					// transfer internal memory to the display
 }
 
-void iwrite(String msg, OutputPane output) {
-  iwrite(msg, output.tela, output.cursor, output.font);
+void iwrite(String msg, LabelWidget output) {
+  iwrite(msg, output.screen, output.cursor, output.font);
 }
 
-void write(String msg, OutputPane output) {
-  write(msg, output.tela, output.cursor, output.font);
+void write(String msg, LabelWidget output) {
+  write(msg, output.screen, output.cursor, output.font);
 }
 
-void print(String msg, U8G2 *tela, Cursor &cursor = tela1_cursor, const uint8_t *font = FONT_SMALL) {
-  tela->clearBuffer();
-  write(msg, tela, cursor, font);
+void print(String msg, U8G2 *screen, Cursor &cursor = screen1_cursor, const uint8_t *font = FONT_SMALL) {
+  screen->clearBuffer();
+  write(msg, screen, cursor, font);
 }
 
-void print(String msg, OutputPane &output) {
-  print(msg, output.tela, output.cursor, output.font);
+void print(String msg, LabelWidget &output) {
+  print(msg, output.screen, output.cursor, output.font);
 }
 
+int Gfreq, Gtime;
 void tone(int freq, int time){
   if(!mute){
+    Gfreq = freq;
+    Gtime = time;
     analogWrite(A0, 255);
-    tone(BUZZER, freq, time);
+    tone(BUZZER, Gfreq, Gtime);
     app.delay(time, REACT(analogWrite(A0, 0)));
   }
 }
@@ -68,31 +71,31 @@ void matrixMirrowedPrint(String n){
 
 void mirrowedPrint(String msg){
   static bool toggle = true;
-  tela1_cursor.x=30;
-  tela1_cursor.y=40;
-  tela2_cursor.x=30;
-  tela2_cursor.y=40;
+  screen1_cursor.x=30;
+  screen1_cursor.y=40;
+  screen2_cursor.x=30;
+  screen2_cursor.y=40;
 
   int str_len = msg.length() + 1; 
   char char_array[str_len];
   msg.toCharArray(char_array, str_len);
-  tela1.setFont(FONT_BIG);  
-  tela2.setFont(FONT_BIG);  
-  tela1.clearBuffer();
-  tela2.clearBuffer();
-  tela1.drawStr(tela1_cursor.x, tela1_cursor.y, char_array);	
-  tela2.drawStr(tela2_cursor.x, tela2_cursor.y, char_array);	
+  screen1.setFont(FONT_BIG);  
+  screen2.setFont(FONT_BIG);  
+  screen1.clearBuffer();
+  screen2.clearBuffer();
+  screen1.drawStr(screen1_cursor.x, screen1_cursor.y, char_array);	
+  screen2.drawStr(screen2_cursor.x, screen2_cursor.y, char_array);	
   if(toggle){
-    tela1.updateDisplayArea(3, 2, 12, 4);
-    tela2.updateDisplayArea(3, 2, 12, 4);
-    // tela1.sendBuffer();					
-    // tela2.sendBuffer();					
+    screen1.updateDisplayArea(3, 2, 12, 4);
+    screen2.updateDisplayArea(3, 2, 12, 4);
+    // screen1.sendBuffer();					
+    // screen2.sendBuffer();					
   }
   else{
-    tela1.updateDisplayArea(3, 2, 12, 4);
-    tela2.updateDisplayArea(3, 2, 12, 4);
-    // tela2.sendBuffer();					
-    // tela1.sendBuffer();					
+    screen1.updateDisplayArea(3, 2, 12, 4);
+    screen2.updateDisplayArea(3, 2, 12, 4);
+    // screen2.sendBuffer();					
+    // screen1.sendBuffer();					
   }
   toggle = !toggle;
 }
@@ -264,4 +267,9 @@ String timestamp(unsigned long dt){
     return String(sec+"."+ms);
 }
 
-
+void generateRandomNumbers(int &laps, int opt, int n_laps){
+  if(opt)
+    laps = random(1, n_laps-1);
+  else
+    laps = -1;
+}

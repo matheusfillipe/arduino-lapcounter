@@ -46,33 +46,33 @@ class Cursor{
 };
 
 
-class OutputPane{
+class LabelWidget{
 
 public:
   Cursor &cursor;
-  U8G2 *tela;
+  U8G2 *screen;
   const uint8_t *font;
   String text;
 
-  OutputPane(Cursor &cursor, U8G2 *tela, const uint8_t *font): cursor(cursor), tela(tela), font(font){}
+  LabelWidget(Cursor &cursor, U8G2 *screen, const uint8_t *font): cursor(cursor), screen(screen), font(font){}
   
   void write(String msg){
     int str_len = msg.length() + 1; 
-    tela->setFont(this->font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
+    screen->setFont(this->font);  // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
     char char_array[str_len];
     msg.toCharArray(char_array, str_len);
-    tela->drawStr(this->cursor.x, this->cursor.y, char_array);	// write something to the internal memory
-    tela->sendBuffer();					// transfer internal memory to the display
+    screen->drawStr(this->cursor.x, this->cursor.y, char_array);	// write something to the internal memory
+    screen->sendBuffer();					// transfer internal memory to the display
     this->text += msg;
   }
 
   void print(String msg){
-    tela->clearBuffer();
+    screen->clearBuffer();
     this->write(msg);
   }
 
   void clear() {
-    this->tela->clear();
+    this->screen->clear();
     this->text="";
   }
 
