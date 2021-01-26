@@ -300,22 +300,22 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
     P.pbltime = P.pbltime > dt || P.pbltime == 0 ? dt : P.pbltime;
     animating = matrix_print(++P.p_laps);
     printLap(dt, OS, P.pbltime, BLS, P.fuel, FS);
-    serialSend("LAPS", P.num, P.p_laps);
-    serialSend("FUEL", P.num, P.fuel);
-    if(animating)
-      app.free(matrix_print_reaction);
+   // serialSend("LAPS", P.num, P.p_laps);
+   // serialSend("FUEL", P.num, P.fuel);
+   // if(animating)
+   //   app.free(matrix_print_reaction);
 
-    // Check random failure for next lap 
-    if(options.fails && P.p_laps == P.fail_lap){
-      if(P.num == 1)
-        app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
-            addFailure(P1, OS1);
-        });
-      if(P.num == 2)
-        app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
-            addFailure(P2, OS2);
-        });
-    }
+   // // Check random failure for next lap 
+   // if(options.fails && P.p_laps == P.fail_lap){
+   //   if(P.num == 1)
+   //     app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
+   //         addFailure(P1, OS1);
+   //     });
+   //   if(P.num == 2)
+   //     app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
+   //         addFailure(P2, OS2);
+   //     });
+   // }
 }
 
 void refuel(PlayerState &P, LabelWidget &FS){
