@@ -91,6 +91,11 @@ void game();
 void race();
 void startup();
 void menu_input();
+void alertSound();
+void negativeSound();
+void refuel(PlayerState &P, LabelWidget &FS);
+void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bool  (*matrix_print)(int), LabelWidget &OS, LabelWidget &BLS, LabelWidget &FS);
+#include "counter.h"
 
 // Sounds
 void negativeSound(){
@@ -247,7 +252,8 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
     }
 
     // Determine lap time
-    unsigned long dt = (millis() - start) - total_time; 
+    unsigned long time = P.num == 1 ? p1Time : p2Time; // <---- !BAD;
+    unsigned long dt = (time - start) - total_time; 
     if(dt < MIN_LAP_TIME){  
       debug("Ignoring"); 
       return; 
@@ -260,6 +266,7 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
         negativeSound();
         ASemOff(SEMA[P.num-ONE]);
         analogWrite(SEMA[P.num-ONE][0], 255);
+        OS.screen->clearBuffer();
         OS.screen->clear();
         if(options.fails && P.p_laps == P.fail_lap)
           OS.screen->drawXBMP(0, 0, car_width, car_height, car_bits);
@@ -328,18 +335,28 @@ void refuel(PlayerState &P, LabelWidget &FS){
   }
 }
 
+
+
 void resetPlayers(){
+  p1sState = SLEFT;
+  p1Time = 0;
+  P1sensorHandled = true;
   P1.num = 1;
-  P2.num = 2;
   P1.p_laps = LAP_START;
-  P2.p_laps = LAP_START;
   P1.pbltime = 0;
-  P2.pbltime = 0;
   P1.fuel = 100;
-  P2.fuel = 100;
   P1.justRefueled = false;
-  P2.justRefueled = false;
   P1.isOnPit = false;
+
+  p2sState = SLEFT;
+  p2Time = 0;
+  p2Time = 0;
+  P2sensorHandled = true;
+  P2.num = 2;
+  P2.p_laps = LAP_START;
+  P2.pbltime = 0;
+  P2.fuel = 100;
+  P2.justRefueled = false;
   P2.isOnPit = false;
 }
 
@@ -357,112 +374,37 @@ void freePitStop(PlayerState &P, bool force = false){
 }
 
 reaction qdr1, qdr2;
+
+
 void race(){
   serialSend("RACE");
   resetPlayers();
-
   start = millis();
   rman.add(bindKey('D', game));
 
-  // TODO: Move all this to a handleSensorInput function refactor
-  rman.add(app.onPinChange(LAPP1, [](){
-    static bool animating = false;
-    static bool wasEntered = false;
-    static bool pitStopLaunched = false;
-    int value = digitalRead(LAPP1);
-    debug(String(value));
-
-    if(wasEntered && value == HIGH){ // On sensor leave
-      freePitStop(P1);
-      addLap(P1, animating, matrix1_print_reaction, matrix1_print, OS1, BLS1, FS1);
-      wasEntered = false;
-      P1.justRefueled = false;
-      pitStopLaunched = false;
-    }else if (options.autonomy > 0 && !pitStopLaunched && P1.p_laps >= 0 && !P1.isOnPit && !P1.isOnPitDelay){ // On sensor enter
-      pitStopLaunched = true;
-      debug("Pit stop Check");
-      freePitStop(P1);
-      P1.pitDelay = app.delay(2*PITSTOP_TIME, [](){
-        P1.isOnPitDelay = true;
-        if(digitalRead(LAPP1) == HIGH){
-          freePitStop(P1);
-          return;
-        }
-        debug("Pit stop delay");
-        OS1.screen->clear();
-        OS1.cursor.x = 5;
-        iwrite(TEXT_RACE_PITSTOP, OS1);
-        OS1.cursor.x = TEXT_X_OFFSET;
-        OS1.screen->updateDisplayArea(0, 2, 16, 4);
-        P1.pitstop = app.repeat(PITSTOP_TIME, [](){
-            if(!P1.isOnPit){
-              alertSound();
-              ASemOff(SEMA[P1.num-ONE]);
-              analogWrite(SEMA[P1.num-ONE][ONE], 255);
-            }
-            P1.isOnPit = true;
-            if(digitalRead(LAPP1) == LOW){
-              refuel(P1, FS1);
-            } else{
-              freePitStop(P1);
-            }
-        });
-      });
+  // CHECK-WRITE LOOP
+  rman.add(app.repeat(RACE_LOOP_DELAY, [](){
+    if(!P1sensorHandled && !P2sensorHandled){
+      if (p1Time<p2Time){
+        sensorHandleChange(onSensor1Change, P1sensorHandled, p1sState);
+        sensorHandleChange(onSensor2Change, P2sensorHandled, p2sState);
+      }else{
+        sensorHandleChange(onSensor2Change, P2sensorHandled, p2sState);
+        sensorHandleChange(onSensor1Change, P1sensorHandled, p1sState);
+      }
     }
-    if (value == LOW)
-      wasEntered = true;
+    else if (!P1sensorHandled){
+      sensorHandleChange(onSensor1Change, P1sensorHandled, p1sState);
+    }
+    else if (!P2sensorHandled){
+      sensorHandleChange(onSensor2Change, P2sensorHandled, p2sState);
+    }
+   checkHold(LAPP1, p1sState, p1Time, P1sensorHandled);
+   checkHold(LAPP2, p2sState, p2Time, P2sensorHandled);
   }));
 
-  //-----------------------------------------------------------------------------
-
-  rman.add(app.onPinChange(LAPP2, [](){
-    static bool animating = false;
-    static bool wasEntered = false;
-    static bool pitStopLaunched = false;
-    int value = digitalRead(LAPP2);
-    debug(String(value));
-
-    if(wasEntered && value == HIGH){ // On sensor leave
-      freePitStop(P2);
-      addLap(P2, animating, matrix2_print_reaction, matrix2_print, OS2, BLS2, FS2);
-      wasEntered = false;
-      P2.justRefueled = false;
-      pitStopLaunched = false;
-    }
-    else if (options.autonomy > 0 && !pitStopLaunched && P2.p_laps >= 0 && !P2.isOnPit && !P2.isOnPitDelay){ // On sensor enter
-      pitStopLaunched = true;
-      debug("Pit stop Check");
-      freePitStop(P2);
-      P2.pitDelay = app.delay(2*PITSTOP_TIME, [](){
-        P2.isOnPitDelay = true;
-        if(digitalRead(LAPP2) == HIGH){
-          freePitStop(P2);
-          return;
-        }
-        debug("Pit stop delay");
-        OS2.screen->clear();
-        OS2.cursor.x = 5;
-        iwrite(TEXT_RACE_PITSTOP, OS2);
-        OS2.cursor.x = TEXT_X_OFFSET;
-        OS2.screen->updateDisplayArea(0, 2, 26, 4);
-        P2.pitstop = app.repeat(PITSTOP_TIME, [](){
-            if(!P2.isOnPit){
-              alertSound();
-              ASemOff(SEMA[P2.num-ONE]);
-              analogWrite(SEMA[P2.num-ONE][ONE], 255);
-            }
-            P2.isOnPit = true;
-            if(digitalRead(LAPP2) == LOW){
-              refuel(P2, FS2);
-            } else{
-              freePitStop(P2);
-            }
-        });
-      });
-    }
-    if (value == LOW)
-      wasEntered = true;
-  }));
+  LAPCOUNT(LAPP1, REACT(handleSensorInput(LAPP1, p1sState, p1Time, P1sensorHandled)));
+  LAPCOUNT(LAPP2, REACT(handleSensorInput(LAPP2, p2sState, p2Time, P2sensorHandled)));
 }
 
 void generateFailures(){
@@ -803,7 +745,8 @@ void app_main() {
   screen1.enableUTF8Print();	
   screen2.begin();
   screen2.enableUTF8Print();	
-  boot();
+  // boot();
+  race();
 }
 
 Reactduino app(app_main);

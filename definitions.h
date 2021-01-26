@@ -1,10 +1,13 @@
 /* TODO 
- * bug: Silmultaneous lap count not possible
- * bug: simultaneous rpitsopt 2 playres
- * TESTS
+ * bug: simultaneous rpitsopt 2 playres. Only freezes refueling if the lap from
+ * the other player is valid, otherwise (if invalid) the problem doesn't happen
+ 
+ * Not clear player screen glitch artifact on fefule + lap
 */
 
-#define DEBUG false
+#define DEBUG true
+#define MUTE true
+#define _IST_SENSOR_ 1
 
 // PINS
 #define LAPP1 2
@@ -27,9 +30,11 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 #define MAX_FAILURES 3
 #define BITS_LAPS 8
 #define DEFAULT_LAPS 20
-#define DEFAULT_AUTONOMY 0
+#define DEFAULT_AUTONOMY 5
 #define DEFAULT_FAILURE 0
 
+#define RACE_LOOP_DELAY 50
+#define SHOLD_DELAY 250
 #define BLINK_TIME 100
 #define BLINK_TIME_SLOW 100
 #define N_PINS 24
@@ -108,6 +113,11 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 #endif
 
 // Macros
+#define LAPCOUNT(pin, func) rman.add(app.onPinChangeNoInt(pin, func))
+#ifdef _IST_SENSOR_
+#define LAPCOUNT(pin, func) rman.add(app.onPinChange(pin, func))
+#endif
+
 #define REACT(func) [](){func;}
 #define DEB(varname) debug(String(__FILE__).substring(String(__FILE__).lastIndexOf("/")+1, String(__FILE__).length())+":"+String(__LINE__)+" --> "#varname" = " + String(varname))
 #define DELAY_HIGH(n, pin) app.delay(n,[](){digitalWrite(pin, HIGH);})

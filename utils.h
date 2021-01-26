@@ -42,12 +42,15 @@ void print(String msg, LabelWidget &output) {
 
 int Gfreq, Gtime;
 void tone(int freq, int time){
-  if(!mute){
+  if(!mute && !MUTE){
     Gfreq = freq;
     Gtime = time;
     analogWrite(A0, 255);
     tone(BUZZER, Gfreq, Gtime);
     app.delay(time, REACT(analogWrite(A0, 0)));
+  }
+  if(mute || MUTE){
+    analogWrite(A0, 0);
   }
 }
 
