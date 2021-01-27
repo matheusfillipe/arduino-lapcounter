@@ -1,11 +1,12 @@
 /* TODO 
  * bug: full fuel bar when.... ?
+ * check sounds
 */
 
 // Changed:
 // MUTE,  
 
-#define DEBUG false
+#define DEBUG true 
 #define MUTE true //false
 #define _IST_SENSOR_ 1
 #define ENTRY_FUNC boot()//race() //boot()
