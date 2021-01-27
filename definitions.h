@@ -1,13 +1,14 @@
 /* TODO 
- * bug: simultaneous rpitsopt 2 playres. Only freezes refueling if the lap from
- * the other player is valid, otherwise (if invalid) the problem doesn't happen
- 
- * Not clear player screen glitch artifact on fefule + lap
+ * bug: full fuel bar when.... ?
 */
 
-#define DEBUG true
-#define MUTE true
+// Changed:
+// MUTE,  
+
+#define DEBUG false
+#define MUTE true //false
 #define _IST_SENSOR_ 1
+#define ENTRY_FUNC boot()//race() //boot()
 
 // PINS
 #define LAPP1 2
@@ -27,10 +28,10 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 
 // Constants
 #define MAX_LAPS 255
-#define MAX_FAILURES 3
+#define MAX_FAILURES 1
 #define BITS_LAPS 8
 #define DEFAULT_LAPS 20
-#define DEFAULT_AUTONOMY 5
+#define DEFAULT_AUTONOMY 0
 #define DEFAULT_FAILURE 0
 
 #define RACE_LOOP_DELAY 50
@@ -58,7 +59,8 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 
 #define MATRIX_Y_CENTER 7
 #define MATRIX_ANIMATION_PAUSE 2
-#define MATRIX_ANIMATION_DELAY 300
+#define MATRIX_ANIMATION_DELAY 200
+#define MATRIX_ANIMATION_END_XOFFSET 2
 
 #define TEST_START 0
 #define LAP_START -1 //-1
@@ -88,6 +90,7 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 #define TEXT_MENU_USE "ON"
 
 #define TEXT_RACE_PITSTOP "PIT STOP"
+#define TEXT_RACE_PITSTOP_YOFFSET 10
 
 #define TEXT_X_OFFSET 30
 

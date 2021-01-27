@@ -82,7 +82,7 @@ LabelWidget FS2(f2Cursor,    &screen2,   FONT_SMALL);
 LabelWidget MS1(matrix1_cursor, &matrix1, FONT_MATRIX);
 LabelWidget MS2(matrix2_cursor, &matrix2, FONT_MATRIX);
 
-// Games
+// Game
 #include "utils.h"
 
 void countdown();
@@ -209,6 +209,7 @@ unsigned long start;
 void writeFuel(int fuel, LabelWidget FS){
     if (options.autonomy == 0)
       return;
+
     FS.screen->setFont(FS.font);
     FS.screen->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
     FS.screen->drawBox(15, 5, fuel*(128-45)/100, 5);
@@ -297,31 +298,35 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
       tone(NOTE_E4, 150);
 
     // Increment lap and Draw stuff
+    if(animating){
+      app.free(matrix_print_reaction);
+      debug("Freeing matrix animation of P" +String(P.num));
+    }
     P.pbltime = P.pbltime > dt || P.pbltime == 0 ? dt : P.pbltime;
     animating = matrix_print(++P.p_laps);
     printLap(dt, OS, P.pbltime, BLS, P.fuel, FS);
-   // serialSend("LAPS", P.num, P.p_laps);
-   // serialSend("FUEL", P.num, P.fuel);
-   // if(animating)
-   //   app.free(matrix_print_reaction);
+    serialSend("LAPS", P.num, P.p_laps);
+    serialSend("FUEL", P.num, P.fuel);
+    DEB(animating);
 
-   // // Check random failure for next lap 
-   // if(options.fails && P.p_laps == P.fail_lap){
-   //   if(P.num == 1)
-   //     app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
-   //         addFailure(P1, OS1);
-   //     });
-   //   if(P.num == 2)
-   //     app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
-   //         addFailure(P2, OS2);
-   //     });
-   // }
+    // Check random failure for next lap 
+    if(options.fails && P.p_laps == P.fail_lap){
+      if(P.num == 1)
+        app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
+            addFailure(P1, OS1);
+        });
+      if(P.num == 2)
+        app.delay(random(FAILURE_MIN_DELAY, FAILURE_MAX_DELAY+ONE), [](){
+            addFailure(P2, OS2);
+        });
+    }
 }
 
 void refuel(PlayerState &P, LabelWidget &FS){
   P.fuel += PITSTOP_REFUEL_AMMOUNT;
   P.fuel = P.fuel <= 100 ? P.fuel : 100;
   serialSend("FUEL", P.num, P.fuel);
+  FS.screen->clearBuffer();
   writeFuel(P.fuel, FS);
   FS.screen->updateDisplayArea(0, 0, 16, 3);
   P.justRefueled = true;
@@ -664,8 +669,8 @@ void test_process_input(){
 void testMode(){
   app.delay(0, REACT(tone(NOTE_C4, 100)));
   app.delay(200, REACT(tone(NOTE_C4, 500)));
-  m1r=app.repeat(1000, REACT(inc_matrix1(TEST_START)()));
-  m2r=app.repeat(800, REACT(inc_matrix2(TEST_START + 2)()));
+//  m1r=app.repeat(1000, REACT(inc_matrix1(TEST_START)()));
+//  m2r=app.repeat(800, REACT(inc_matrix2(TEST_START + 2)()));
   app.repeat(KEYBOARD_DELAY, REACT(test_process_input()));
   app.repeat(500, [](){
       static int count = 0;
@@ -680,12 +685,18 @@ void testMode(){
       count++;
   });
   app.onPinFalling(LAPP1, [](){
-      app.free(m1r);
-      inc_matrix1(0)();
+     static bool freed = false;
+     if (!freed)
+        app.free(m1r);
+      inc_matrix1(90)();
+      freed=true;
   });
   app.onPinFalling(LAPP2, [](){
-      app.free(m2r);
-      inc_matrix2(10)();
+     static bool freed = false;
+     if (!freed)
+        app.free(m2r);
+      inc_matrix2(90)();
+      freed=true;
   });
 }
 
@@ -745,8 +756,7 @@ void app_main() {
   screen1.enableUTF8Print();	
   screen2.begin();
   screen2.enableUTF8Print();	
-  // boot();
-  race();
+  ENTRY_FUNC;
 }
 
 Reactduino app(app_main);

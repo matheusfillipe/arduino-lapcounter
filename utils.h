@@ -171,7 +171,7 @@ react_callback inc_matrix2(int start = 0){
       if(count >= MAX_LAPS)
         count = 0;
       if (animating)
-        app.free(matrix1_print_reaction);
+        app.free(matrix2_print_reaction);
       animating = matrix2_print(count);
       count++;
   };
@@ -179,7 +179,7 @@ react_callback inc_matrix2(int start = 0){
 
 String matrix1_number;
 bool matrix1_print(int num){ 
-  matrix1_number = num;
+  matrix1_number = String(num);
   String msg = String(num);
   matrix1.setFont(FONT_MATRIX);
   const int w = matrix1.getStrWidth(msg.c_str());
@@ -189,7 +189,7 @@ bool matrix1_print(int num){
     matrix1_cursor.x = 0;
     matrix1_cursor.y = MATRIX_Y_CENTER;
     print(msg, &matrix1, matrix1_cursor, FONT_MATRIX);
-    return;
+    return false;
   }
 
   matrix1_print_reaction = app.repeat(MATRIX_ANIMATION_DELAY, [](){       
@@ -210,7 +210,7 @@ bool matrix1_print(int num){
       if (!firstTime && xOffset == 0){
         delay = 0;
       }
-      xOffset = w-xOffset <= W ? 0 : xOffset + 1;
+      xOffset = w-xOffset+MATRIX_ANIMATION_END_XOFFSET <= W ? 0 : xOffset + 1;
       delay = xOffset == 0 ? 0 : delay;
       firstTime = false;
   });
@@ -220,7 +220,7 @@ bool matrix1_print(int num){
 
 String matrix2_number;
 bool matrix2_print(int num){ 
-  matrix2_number = num;
+  matrix2_number = String(num);
   String msg = String(num);
   matrix2.setFont(FONT_MATRIX);
   const int w = matrix2.getStrWidth(msg.c_str());
@@ -230,7 +230,7 @@ bool matrix2_print(int num){
     matrix2_cursor.x = 0;
     matrix2_cursor.y = MATRIX_Y_CENTER;
     print(msg, &matrix2, matrix2_cursor, FONT_MATRIX);
-    return;
+    return false;
   }
   
   matrix2_print_reaction = app.repeat(MATRIX_ANIMATION_DELAY, [](){       
@@ -251,7 +251,7 @@ bool matrix2_print(int num){
       if (!firstTime && xOffset == 0){
         delay = 0;
       }
-      xOffset = w-xOffset <= W ? 0 : xOffset + 1;
+      xOffset = w-xOffset+MATRIX_ANIMATION_END_XOFFSET <= W ? 0 : xOffset + 1;
       delay = xOffset == 0 ? 0 : delay;
       firstTime = false;
   });
