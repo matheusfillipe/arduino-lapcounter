@@ -1,15 +1,22 @@
+////////////////////////////////////////////////////
 /* TODO 
  * bug: full fuel bar when.... ?
- * check sounds
+ * bug: No menu when back from race
+ * bug: crash?
+ *
+ * test: check sounds
 */
 
 // Changed:
 // MUTE,  
+//
+////////////////////////////////////////////////////
 
+// GENRAL
 #define DEBUG true 
 #define MUTE true //false
 #define _IST_SENSOR_ 1
-#define ENTRY_FUNC boot()//race() //boot()
+#define ENTRY_FUNC game()//race() //boot()
 
 // PINS
 #define LAPP1 2
@@ -28,7 +35,7 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 
 
 // Constants
-#define MAX_LAPS 255
+#define MAX_LAPS 200
 #define MAX_FAILURES 1
 #define BITS_LAPS 8
 #define DEFAULT_LAPS 20
@@ -45,7 +52,7 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 #define KEYBOARD_RESET_DELAY 1500
 #define TEST_DELAY 1500
 #define MIN_LAP_TIME 900.0
-#define RESET_TIME 3000
+#define RESET_TIME 2000
 
 #define PITSTOP_TIME 1000
 #define PITSTOP_REFUEL_AMMOUNT 15

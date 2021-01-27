@@ -136,7 +136,9 @@ void printWin(int n){
       BLS2.cursor.x+=winXOffset;
       write(timestamp(P2.Laps[P2.p_laps-1].lap_time), BLS2);
       BLS2.cursor.x-=winXOffset;
-    }
+
+      matrix_cross(&matrix2);
+  }
     else if(n==2){
       print(TEXT_WIN, OS2);
       write(TEXT_BESTLAP+timestamp(P2.pbltime), BLS2);
@@ -149,6 +151,8 @@ void printWin(int n){
       BLS1.cursor.x+=winXOffset;
       write(timestamp(P1.Laps[P1.p_laps-1].lap_time), BLS1);
       BLS1.cursor.x-=winXOffset;
+
+      matrix_cross(&matrix1);
     }
 }
 
@@ -187,6 +191,9 @@ void win(int n){
           ASemOff(SEMA[0]);
         wonState = !wonState;
     }));
+    rman.add(app.repeat(100, [](){
+          matrix_win_animation(&matrix1);
+    }));
   }
   if(n==2){
     rman.add(app.repeat(500, [](){
@@ -196,6 +203,9 @@ void win(int n){
         else
           ASemOff(SEMA[1]);
         wonState = !wonState;
+    }));
+    rman.add(app.repeat(100, [](){
+          matrix_win_animation(&matrix2);
     }));
   }
   bindKey('D', [](){
@@ -291,6 +301,7 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
     // Low fuel alert
     if(P.fuel <= 0){ 
       tone(NOTE_E5, 500);
+      ASemOff(SEMA[P.num - ONE]);
       analogWrite(SEMA[P.num-ONE][1], 255);
       if(options.n_laps && P.p_laps+1 == P.fail_lap)
         P.fail_lap = random(P.p_laps+1, options.n_laps-1);
@@ -382,6 +393,7 @@ reaction qdr1, qdr2;
 
 
 void race(){
+  rman.free();
   serialSend("RACE");
   resetPlayers();
   start = millis();
@@ -421,13 +433,17 @@ void generateFailures(){
   debug(P2.fail_lap);
 }
 
-void restart_countdown(){
+void restart_countdown(int num){
   app.free(qdr1);
   app.free(qdr2);
   rman.free();
+
   matrix1.clear();
   matrix2.clear();
+  matrix_cross(num==1? &matrix1 : &matrix2);
   bindKey('D', [](){
+    matrix1.clear();
+    matrix2.clear();
     startup();
   });
   negativeSound();
@@ -495,7 +511,8 @@ void startup(){
       print("", &screen2, screen2_cursor, FONT_BIG);
       ASemOff(SEMA[0]);
       ASemOff(SEMA[1]);
-      restart_countdown();
+      restart_countdown(1);
+
       rman.add(app.repeat(BLINK_TIME_SLOW, [](){
             static bool state = true;
             analogWrite(SEMA[0][0], 255*state);
@@ -510,7 +527,8 @@ void startup(){
       print("", &screen1, screen1_cursor, FONT_BIG);
       ASemOff(SEMA[0]);
       ASemOff(SEMA[1]);
-      restart_countdown();
+      restart_countdown(2);
+
       rman.add(app.repeat(BLINK_TIME_SLOW, [](){
             static bool state = true;
             analogWrite(SEMA[1][0], 255*state);
@@ -630,6 +648,10 @@ void menu_input(){
         }
         else{ 
           printMenuValue(TEXT_MENU_USE);
+        }
+        if(autonomy == "0"){
+          debug("Setting autonomy to n_laps+1");
+          autonomy = String(laps.toInt()+1);
         }
         break;
     }

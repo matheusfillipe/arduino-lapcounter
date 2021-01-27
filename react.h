@@ -23,7 +23,7 @@ class ReactionManager{
       for(int i=0; i<this->i; i++){
         app.free(reactions[i]);
       }
-      debug("Freeing");
+      debug("Freeing reactions");
       this->i = 0;
     }
 };
