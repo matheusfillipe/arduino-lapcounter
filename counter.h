@@ -6,9 +6,13 @@ volatile unsigned long p2Time;
 volatile bool P1sensorHandled;
 volatile bool P2sensorHandled;
 
+volatile unsigned long lastEventTime = 0;
+
+
 void handleSensorInput(volatile int pin, volatile SensorState &psState,
                        volatile unsigned long &pTime,
-                       volatile bool &sensorHandled) {
+                       volatile bool &sensorHandled,
+                       int pnum) {
   int value = digitalRead(pin);
 
   if (psState != SLEFT && (psState == SENTERED or psState == SHOLD) &&
@@ -21,7 +25,17 @@ void handleSensorInput(volatile int pin, volatile SensorState &psState,
     psState = SENTERED;
     pTime = millis();
     sensorHandled = false;
+    lastEventTime = pTime;
+  } else if (value == HIGH && millis()-lastEventTime<=LAP_COUNT_THRESHOLD){
+    psState = SLEFT;
+    pTime = millis();
+    sensorHandled = false;
   }
+
+  DEB(pnum);
+  DEB(value);
+  DEB(sensorHandled);
+  DEB(millis()-lastEventTime);
 }
 
 void checkHold(int pin, volatile SensorState &psState,
@@ -57,15 +71,18 @@ void onSensorChange(int last_state, volatile SensorState psState,
 
   if (psState == SLEFT) {
     debug("P" + String(P.num) + " LEFT");
+    #ifdef _SENSOR_TEST_
     freePitStop(P);
     addLap(P, animating, matrix_print_reaction, matrix_print, OS, BLS, FS);
     P.justRefueled = false;
+    #endif
 
   } else if (psState == SENTERED) {
     debug("P" + String(P.num) + " Entered");
 
   } else if (psState == SHOLD) {
     debug("P" + String(P.num) + " Hold");
+    #ifdef _SENSOR_TEST_
     if (options.autonomy > 0 && P.p_laps >= 0 && !P.isOnPit &&
         !P.isOnPitDelay) {
       if (P.num == 1)
@@ -73,6 +90,7 @@ void onSensorChange(int last_state, volatile SensorState psState,
       if (P.num == 2)
         p2PitStop();
     }
+    #endif
   }
 }
 

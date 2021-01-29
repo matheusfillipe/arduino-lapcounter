@@ -1,3 +1,14 @@
+/* ######################################################################### */
+/* #  Matheus Fillipe -- 28, January of 2021                               # */
+/* #                                                                       # */
+/* ######################################################################### */
+/* #  Description: A slot car lap counter for arduino. This sketch and the * # */
+/* # header files and modified libraries are necessary for it to work co_  # */
+/* # rrectly.                                                              # */
+/* ######################################################################### */
+/* THIS IS LICENSED UNDER THE MIT LICENSE */
+        
+
 // #include <Array.h>
 #include <Keypad.h>
 #include <Buzzer.h>
@@ -17,7 +28,7 @@
 typedef struct Lap_struct {
   unsigned int player : 1;
   int num : BITS_LAPS;
-  unsigned long lap_time;
+  unsigned long lap_time : 18; // 4 min is the max for a lap
 } Lap;
 
 class GameOptions{
@@ -105,7 +116,7 @@ void negativeSound(){
 
 #define VICT_TIME 220
 void victorySound(){
-  int offset = 2000;
+  int offset = 3000;
   int spacing = 30;
   app.delay(offset,                        REACT(tone(NOTE_E4, VICT_TIME)));
   app.delay(offset+spacing + VICT_TIME,    REACT(tone(NOTE_E4, VICT_TIME)));
@@ -208,10 +219,6 @@ void win(int n){
           matrix_win_animation(&matrix2);
     }));
   }
-  bindKey('D', [](){
-    game();
-  });
-
 }
 
 unsigned long start;
@@ -254,6 +261,12 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
       OS.clear();
       P.fuel=100;
       return;
+    }
+
+    //Failure pitstops must be full time
+    if(P.justRefueled && P.p_laps == P.fail_lap && P.fuel < 100){
+      P.fuel = 0; 
+      P.justRefueled = false;
     }
 
     // Count total time
@@ -354,6 +367,7 @@ void refuel(PlayerState &P, LabelWidget &FS){
 
 
 void resetPlayers(){
+  lastEventTime = millis();
   p1sState = SLEFT;
   p1Time = 0;
   P1sensorHandled = true;
@@ -389,19 +403,27 @@ void freePitStop(PlayerState &P, bool force = false){
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////
 reaction qdr1, qdr2;
-
 
 void race(){
   rman.free();
   serialSend("RACE");
   resetPlayers();
   start = millis();
-  rman.add(bindKey('D', game));
+  bindKey('D', [](){
+    freePitStop(P1);
+    freePitStop(P2);
+    game();
+  });
+
+  LAPCOUNT(LAPP1, REACT(handleSensorInput(LAPP1, p1sState, p1Time, P1sensorHandled, 1)));
+  LAPCOUNT(LAPP2, REACT(handleSensorInput(LAPP2, p2sState, p2Time, P2sensorHandled, 2)));
 
   // CHECK-WRITE LOOP
   rman.add(app.repeat(RACE_LOOP_DELAY, [](){
     if(!P1sensorHandled && !P2sensorHandled){
+      debug("Simultaneous pass");
       if (p1Time<p2Time){
         sensorHandleChange(onSensor1Change, P1sensorHandled, p1sState);
         sensorHandleChange(onSensor2Change, P2sensorHandled, p2sState);
@@ -410,18 +432,18 @@ void race(){
         sensorHandleChange(onSensor1Change, P1sensorHandled, p1sState);
       }
     }
-    else if (!P1sensorHandled){
+    if(!P1sensorHandled){
+      debug("1 pass");
       sensorHandleChange(onSensor1Change, P1sensorHandled, p1sState);
     }
-    else if (!P2sensorHandled){
+    if(!P2sensorHandled){
+      debug("2 pass");
       sensorHandleChange(onSensor2Change, P2sensorHandled, p2sState);
     }
-   checkHold(LAPP1, p1sState, p1Time, P1sensorHandled);
-   checkHold(LAPP2, p2sState, p2Time, P2sensorHandled);
+    checkHold(LAPP1, p1sState, p1Time, P1sensorHandled);
+    checkHold(LAPP2, p2sState, p2Time, P2sensorHandled);
   }));
 
-  LAPCOUNT(LAPP1, REACT(handleSensorInput(LAPP1, p1sState, p1Time, P1sensorHandled)));
-  LAPCOUNT(LAPP2, REACT(handleSensorInput(LAPP2, p2sState, p2Time, P2sensorHandled)));
 }
 
 void generateFailures(){
@@ -453,7 +475,7 @@ void countdown(){
   debug("Countdown");
   generateFailures();
   const int offset = 1500;
-  const int delays[4] = {10, offset+200, 2*offset, 3*offset};
+  const int delays[4] = {10, offset, 2*offset, 3*offset};
   screen1.clear();
   screen2.clear();
 
@@ -547,6 +569,8 @@ void startup(){
 }
 
 // Menu
+String last_text_menu = TEXT_MENU_LAPS;
+String last_value_menu = "";
 void printMenu(String msg, String num){
   FS1.screen->clear();
   iwrite(TEXT_MENU_HEADER, FS1);
@@ -557,6 +581,8 @@ void printMenu(String msg, String num){
   OS1.screen->sendBuffer();
   print(num, OS2);
   write(String(TEXT_MENU_CONFIRM) + ( mute ? " M" : "" ), FS2);
+  last_text_menu = msg;
+  last_value_menu = num;
 }
 
 int touched[] = {0, 0, 0};
@@ -579,6 +605,7 @@ void printMenuValue(String last){
   FS1.screen->clearBuffer();
   iwrite(last, &screen2, screen2_cursor, FONT_BIG);
   screen2.updateDisplayArea(0, 2, 8, 6);
+  last_value_menu = last;
 }
 
 void menu_input(){
@@ -651,7 +678,7 @@ void menu_input(){
         }
         if(autonomy == "0"){
           debug("Setting autonomy to n_laps+1");
-          autonomy = String(laps.toInt()+1);
+          autonomy = String(laps.toInt());
         }
         break;
     }
@@ -668,7 +695,7 @@ void game(){
   OS2.cursor.x=TEXT_X_OFFSET;
   ASemOff(SEMA[1]);
   ASemOff(SEMA[0]);
-  printMenu(TEXT_MENU_LAPS, String(options.n_laps));
+  printMenu(last_text_menu, last_value_menu == "" ? String(options.n_laps) : last_value_menu);
   matrixMirrowedPrint("");
   debug("Menu");
   rman.add(app.repeat(KEYBOARD_DELAY, menu_input));

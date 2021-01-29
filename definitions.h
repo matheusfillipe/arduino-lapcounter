@@ -1,22 +1,15 @@
 ////////////////////////////////////////////////////
 /* TODO 
  * bug: full fuel bar when.... ?
- * bug: No menu when back from race
- * bug: crash?
  *
- * test: check sounds
-*/
-
-// Changed:
-// MUTE,  
-//
-////////////////////////////////////////////////////
+*////////////////////////////////////////////////////
 
 // GENRAL
-#define DEBUG true 
-#define MUTE true //false
+#define DEBUG false 
+#define MUTE false //false
 #define _IST_SENSOR_ 1
-#define ENTRY_FUNC game()//race() //boot()
+#define ENTRY_FUNC boot() //boot()
+#define _SENSOR_TEST_ 1
 
 // PINS
 #define LAPP1 2
@@ -35,13 +28,14 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 
 
 // Constants
-#define MAX_LAPS 200
+#define MAX_LAPS 300
 #define MAX_FAILURES 1
 #define BITS_LAPS 8
 #define DEFAULT_LAPS 20
 #define DEFAULT_AUTONOMY 0
 #define DEFAULT_FAILURE 0
 
+#define LAP_COUNT_THRESHOLD 1400 // if the last even was within this last ms and we got a sensor leave, then count the lap (this is because throuble with sensors)
 #define RACE_LOOP_DELAY 50
 #define SHOLD_DELAY 250
 #define BLINK_TIME 100
