@@ -159,7 +159,7 @@ void printWin(int n){
       matrix_cross(&matrix2);
 
       FS1.screen->setFont(FS1.font);
-      iwrite(timestamp(get_total_time(P1))+" S", FS1);	
+      iwrite(TEXT_TOTAL_TIME+timestamp(get_total_time(P1))+"s", FS1);	
       FS1.screen->updateDisplayArea(0, 0, 16, 3);
   }
     else if(n==2){
@@ -178,7 +178,7 @@ void printWin(int n){
       matrix_cross(&matrix1);
 
       FS2.screen->setFont(FS2.font);
-      iwrite(timestamp(get_total_time(P2))+" S", FS2);	
+      iwrite(TEXT_TOTAL_TIME+timestamp(get_total_time(P2))+"s", FS2);	
       FS2.screen->updateDisplayArea(0, 0, 16, 3);
     }
 }

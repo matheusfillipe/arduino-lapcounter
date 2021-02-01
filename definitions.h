@@ -78,6 +78,7 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 #define TEXT_WIN "Win!"
 #define TEXT_LOOSE "Lost!"
 #define TEXT_BESTLAP "BL: "
+#define TEXT_TOTAL_TIME "Total: "
 
 #define TEXT_STARTUP_BURNED "False!"
 #define TEXT_STARTUP_READY "Ready?"
