@@ -131,6 +131,14 @@ void alertSound(){
   app.delay(10+VICT_TIME, REACT(tone(NOTE_C5, 3*VICT_TIME)));
 }
 
+unsigned long get_total_time(PlayerState &P){
+    unsigned long total_time = 0;
+    for(int i = 0; i < P.p_laps; i++){
+      total_time += P.Laps[i].lap_time;
+    }
+    return total_time;
+}
+
 
 // Race
 const int winXOffset = 80;
@@ -149,6 +157,10 @@ void printWin(int n){
       BLS2.cursor.x-=winXOffset;
 
       matrix_cross(&matrix2);
+
+      FS1.screen->setFont(FS1.font);
+      iwrite(timestamp(get_total_time(P1))+" S", FS1);	
+      FS1.screen->updateDisplayArea(0, 0, 16, 3);
   }
     else if(n==2){
       print(TEXT_WIN, OS2);
@@ -164,6 +176,10 @@ void printWin(int n){
       BLS1.cursor.x-=winXOffset;
 
       matrix_cross(&matrix1);
+
+      FS2.screen->setFont(FS2.font);
+      iwrite(timestamp(get_total_time(P2))+" S", FS2);	
+      FS2.screen->updateDisplayArea(0, 0, 16, 3);
     }
 }
 
@@ -304,6 +320,7 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
 
     // Store lap time
     P.Laps[P.p_laps].lap_time = dt;
+    P.pbltime = P.pbltime > dt || P.pbltime == 0 ? dt : P.pbltime;
 
     if(P.p_laps >= options.n_laps - 1){
       P.p_laps++;
@@ -326,7 +343,6 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
       app.free(matrix_print_reaction);
       debug("Freeing matrix animation of P" +String(P.num));
     }
-    P.pbltime = P.pbltime > dt || P.pbltime == 0 ? dt : P.pbltime;
     animating = matrix_print(++P.p_laps);
     printLap(dt, OS, P.pbltime, BLS, P.fuel, FS);
     serialSend("LAPS", P.num, P.p_laps);
