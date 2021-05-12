@@ -99,9 +99,10 @@ void onSensorChange(int last_state, volatile SensorState psState,
 void p1PitStop() {
   debug("P1 pit stop Check");
   freePitStop(P1);
-  P1.pitDelay = app.delay(PITSTOP_TIME, []() {
+  P1.pitDelay = app.delay(PITSTOP_TIME/2, []() {
     P1.isOnPitDelay = true;
     if (digitalRead(LAPP1) == HIGH) {
+      debug("Canceling high");
       freePitStop(P1);
       return;
     }
@@ -115,6 +116,10 @@ void p1PitStop() {
     OS1.screen->updateDisplayArea(0, 2, 16, 5);
     P1.pitstop = app.repeat(PITSTOP_TIME, []() {
       if (!P1.isOnPit) {
+        if (digitalRead(LAPP1) == HIGH) {
+          freePitStop(P1);
+          return;
+        }
         alertSound();
         ASemOff(SEMA[P1.num - ONE]);
         analogWrite(SEMA[P1.num - ONE][ONE], 255);
@@ -123,6 +128,8 @@ void p1PitStop() {
       if (digitalRead(LAPP1) == LOW) {
         refuel(P1, FS1);
       } else {
+        ASemOff(SEMA[P1.num - ONE]);
+        analogWrite(SEMA[P1.num - ONE][2], 255);
         freePitStop(P1);
       }
     });
@@ -132,7 +139,7 @@ void p1PitStop() {
 void p2PitStop() {
   debug("P2 pit stop Check");
   freePitStop(P2);
-  P2.pitDelay = app.delay(PITSTOP_TIME, []() {
+  P2.pitDelay = app.delay(PITSTOP_TIME/2, []() {
     P2.isOnPitDelay = true;
     if (digitalRead(LAPP2) == HIGH) {
       freePitStop(P2);
@@ -148,6 +155,10 @@ void p2PitStop() {
     OS2.screen->updateDisplayArea(0, 2, 26, 5);
     P2.pitstop = app.repeat(PITSTOP_TIME, []() {
       if (!P2.isOnPit) {
+        if (digitalRead(LAPP2) == HIGH) {
+          freePitStop(P2);
+          return;
+        }
         alertSound();
         ASemOff(SEMA[P2.num - ONE]);
         analogWrite(SEMA[P2.num - ONE][ONE], 255);
@@ -156,6 +167,8 @@ void p2PitStop() {
       if (digitalRead(LAPP2) == LOW) {
         refuel(P2, FS2);
       } else {
+        ASemOff(SEMA[P2.num - ONE]);
+        analogWrite(SEMA[P2.num - ONE][2], 255);
         freePitStop(P2);
       }
     });

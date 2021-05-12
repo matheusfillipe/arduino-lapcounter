@@ -1,0 +1,4 @@
+#!/bin/bash
+FQBN="arduino:avr:mega"
+USB="/dev/ttyUSB*"
+arduino-cli compile -b $FQBN -v && arduino-cli upload -p $USB --fqbn $FQBN -v && ./sm.py $USB

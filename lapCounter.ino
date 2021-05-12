@@ -115,8 +115,8 @@ void negativeSound(){
 }
 
 #define VICT_TIME 220
-void victorySound(){
-  int offset = 3000;
+int victorySound(){
+  int offset = 1000;
   int spacing = 30;
   app.delay(offset,                        REACT(tone(NOTE_E4, VICT_TIME)));
   app.delay(offset+spacing + VICT_TIME,    REACT(tone(NOTE_E4, VICT_TIME)));
@@ -124,6 +124,7 @@ void victorySound(){
   app.delay(offset+3*spacing+8*VICT_TIME,  REACT(tone(NOTE_D4, VICT_TIME)));
   app.delay(offset+4*spacing+9*VICT_TIME,  REACT(tone(NOTE_D4, VICT_TIME)));
   app.delay(offset+5*spacing+10*VICT_TIME, REACT(tone(NOTE_C4, VICT_TIME*4)));
+  return offset+5*spacing+14*VICT_TIME;
 }
 
 void alertSound(){
@@ -205,9 +206,8 @@ void win(int n){
   freePitStop(P2);
   matrix1.clear();
   matrix2.clear();
-  victorySound();
   printWin(n);
-  serialTranferLaps();
+  app.delay(victorySound(), REACT(serialTranferLaps()));
 
   if(n==1){
     rman.add(app.repeat(500, [](){
@@ -245,9 +245,11 @@ void writeFuel(int fuel, LabelWidget FS){
 
     FS.screen->setFont(FS.font);
     FS.screen->drawStr(FS.cursor.x, FS.cursor.y, TEXT_FUEL);	
-    FS.screen->drawBox(15, 5, fuel*(128-45)/100, 5);
-    FS.screen->drawLine(15, 8, 15+fuel*(128-45)/100, 8);
-    FS.screen->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel/(100/options.autonomy)).c_str());	
+    if (fuel > 0){
+      FS.screen->drawBox(15, 5, fuel*(128-45)/100, 5);
+      FS.screen->drawLine(15, 8, 15+fuel*(128-45)/100, 8);
+    }
+    FS.screen->drawStr(FS.cursor.x+(128-25), FS.cursor.y, String(fuel==100 ? fuel/(100/options.autonomy) : (fuel > 0 ? int((float) fuel/(100.0/((float)options.autonomy)))+1 : 0)).c_str());	
 }
 
 void printLap(unsigned long dt, LabelWidget &OS, unsigned long pbltime, LabelWidget &LS, int fuel, LabelWidget &FS){
@@ -315,7 +317,7 @@ void addLap(PlayerState &P, bool &animating, reaction &matrix_print_reaction, bo
         OS.screen->sendBuffer();
         return;
       }
-      P.fuel -= 100/options.autonomy;
+      P.fuel -= ((int) 100.0/((float) options.autonomy))+1;
     }
 
     // Store lap time
@@ -428,9 +430,11 @@ void race(){
   resetPlayers();
   start = millis();
   bindKey('D', [](){
-    freePitStop(P1);
-    freePitStop(P2);
-    game();
+    //FIX FOR NON RESETING STATE BUG
+    //freePitStop(P1);
+    //freePitStop(P2);
+    //game();
+    resetProgram();
   });
 
   LAPCOUNT(LAPP1, REACT(handleSensorInput(LAPP1, p1sState, p1Time, P1sensorHandled, 1)));

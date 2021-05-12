@@ -1,14 +1,18 @@
 ////////////////////////////////////////////////////
 /* TODO 
  * bug: full fuel bar when.... ?
+ * wrong image fail for p2
+ * Pit stop not possible after wrong
+ * test new fuel counting
+ * quanto p2 passa nofuel e p1 reabasteceu
  *
 *////////////////////////////////////////////////////
 
-// GENRAL
+// GENERAL
 #define DEBUG false 
 #define MUTE false //false
 #define _IST_SENSOR_ 1
-#define ENTRY_FUNC boot() //boot()
+#define ENTRY_FUNC game() //boot()
 #define _SENSOR_TEST_ 1
 
 // PINS
@@ -28,7 +32,7 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 
 
 // Constants
-#define MAX_LAPS 300
+#define MAX_LAPS 200
 #define MAX_FAILURES 1
 #define BITS_LAPS 8
 #define DEFAULT_LAPS 20
@@ -49,7 +53,7 @@ const uint16_t MATRIX2[] = {/* clock=*/ 43, /* data=*/ 39, /* cs=*/ 41};
 #define RESET_TIME 2000
 
 #define PITSTOP_TIME 1000
-#define PITSTOP_REFUEL_AMMOUNT 15
+#define PITSTOP_REFUEL_AMMOUNT 20
 
 #define FAILURE_MAX_DELAY 1100
 #define FAILURE_MIN_DELAY 400
